@@ -1,0 +1,1409 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minha Agenda PWA Offline</title>
+
+    <meta name="theme-color" content="#343a40"/>
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <link rel="manifest" href="manifest.json">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/main.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+
+    <style>
+        /* Estilos para o tooltip de agendamento personalizado */
+        .custom-tooltip {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            pointer-events: auto;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            max-width: 300px;
+            line-height: 1.5;
+        }
+
+        .custom-tooltip.show {
+            opacity: 1;
+        }
+
+        .custom-tooltip p {
+            margin-bottom: 5px;
+        }
+        .custom-tooltip hr {
+            margin-top: 8px;
+            margin-bottom: 8px;
+        }
+        .tooltip-buttons {
+            display: flex;
+            justify-content: flex-start;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        /* Estilo para o QR Code */
+        #whatsapp-qr-code canvas {
+            display: block;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="d-flex min-vh-100">
+        <!-- A Sidebar começa escondida. O app.js irá exibi-la após a autenticação -->
+        <nav class="sidebar bg-dark text-white p-3 d-none" id="mainSidebar">
+            <div>
+                <a class="navbar-brand mb-3" href="#">Minha Agenda PWA</a>
+                <!-- O botão para abrir o modal. Apenas com atributos do Bootstrap. -->
+                <button class="btn btn-primary w-100 mb-3" id="addProfessionalNavBtn" data-bs-toggle="modal" data-bs-target="#professionalModal">
+                    <i class="fas fa-user-plus"></i> Cadastrar Profissional
+                </button>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" id="sidebarAgendaBtn">
+                            <i class="fas fa-calendar-alt"></i> Agenda
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="sidebarPatientsBtn">
+                            <i class="fas fa-users"></i> Pacientes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="sidebarAppointmentsBtn">
+                            <i class="fas fa-notes-medical"></i> Atendimentos
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="sidebarRemindersBtn">
+                            <i class="fas fa-bell"></i> Lembretes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" id="sidebarWhatsappBtn" data-bs-toggle="modal" data-bs-target="#whatsappModal">
+                            <i class="fab fa-whatsapp"></i> WhatsApp Status
+                        </a>
+                    </li>
+                </ul>
+                <button class="btn btn-secondary me-2 d-none" id="backToCalendarBtn">
+                    <i class="fas fa-arrow-left"></i> Voltar
+                </button>
+            </div>
+            <button class="btn btn-danger w-100 mt-auto" id="logoutBtn">
+                <i class="fas fa-sign-out-alt"></i> Sair
+            </button>
+        </nav>
+
+        <div class="content-area flex-grow-1">
+            <!-- Conteúdo da página (agenda, pacientes, etc.) -->
+            
+            <div class="container-fluid p-0 d-none" id="agendaSection">
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Minha Agenda</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="calendar"></div>   
+                    </div>
+                </div>
+            </div>
+
+            <div class="container-fluid p-0 d-none" id="patientsSection">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-primary text-white">
+                        <h5 class="mb-0">Todos os pacientes <small><a href="#" class="text-white text-decoration-none">Precisa de ajuda?</a></small></h5>
+                        <div>
+                            <button class="btn btn-light btn-sm me-2" id="viewArchivedPatientsBtn"><i class="fas fa-archive"></i> Arquivados/Desativados</button>
+                            <button class="btn btn-light btn-sm me-2" id="exportExcelBtn"><i class="fas fa-file-excel"></i> Exportar para excel</button>
+                            <button class="btn btn-light btn-sm me-2" id="importCsvBtn"><i class="fas fa-file-csv"></i> Importar CSV</button>
+                            <button class="btn btn-info btn-sm me-2" id="newPatientBtn"><i class="fas fa-plus"></i> Cadastrar novo</button>
+                            <button class="btn btn-light btn-sm" id="refreshPatientsBtn"><i class="fas fa-sync-alt"></i> Atualizar Lista</button> </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row mb-3 align-items-end">
+                            <div class="col-md-3">
+                                <label for="patientFilterAnniversary" class="form-label">Aniversariantes:</label>
+                                <select class="form-select" id="patientFilterAnniversary">
+                                    <option value="Todos">Todos</option>
+                                    <option value="Hoje">Hoje</option>
+                                    <option value="Mes">Este mês</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="patientFilterGender" class="form-label">Sexo/gênero:</label>
+                                <select class="form-select" id="patientFilterGender">
+                                    <option value="Todos">Todos</option>
+                                    <option value="Masculino">Masculino</option>
+                                    <option value="Feminino">Feminino</option>
+                                    <option value="Outro">Outro</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label for="patientFilterDate" class="form-label">Data de Cadastro:</label>
+                                <select class="form-select" id="patientFilterDate">
+                                    <option value="Desde o inicio">Desde o início</option>
+                                    <option value="Ultimos 30 dias">Últimos 30 dias</option>
+                                    <option value="Este ano">Este ano</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3 d-flex justify-content-end">
+                                <input type="text" class="form-control w-auto me-2" id="patientSearchInput" placeholder="Pesquisar">
+                                <button class="btn btn-outline-secondary" id="patientSearchBtn"><i class="fas fa-search"></i></button>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <select class="form-select d-inline-block w-auto me-2" id="patientsPerPage">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                            resultados por página
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th><input type="checkbox" id="selectAllPatients"></th>
+                                        <th>Nome <i class="fas fa-sort"></i></th>
+                                        <th>Celular <i class="fas fa-sort"></i></th>
+                                        <th>Data de nascimento <i class="fas fa-sort"></i></th>
+                                        <th>CPF <i class="fas fa-sort"></i></th>
+                                        <th>Cidade <i class="fas fa-sort"></i></th>
+                                        <th>Convênio <i class="fas fa-sort"></i></th>
+                                        <th>Histórico <i class="fas fa-sort"></i></th>
+                                        <th>Cadastro <i class="fas fa-sort"></i></th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="patientListTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small id="paginationInfo">Mostrando de 1 até X de Y registros</small>
+                            <nav>
+                                <ul class="pagination mb-0" id="patientPagination">
+                                    <li class="page-item disabled"><a class="page-link" href="#" id="patientPrevPage">Anterior</a></li>
+                                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                                    <li class="page-item disabled"><a class="page-link" href="#" id="patientNextPage">Próximo</a></li>
+                                    </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="container-fluid p-0 d-none" id="patientRecordSection">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-success text-white">
+                        <h5 class="mb-0">Histórico do paciente <span id="recordPatientNameHeader"></span></h5>
+                        <div>
+                            <button class="btn btn-light btn-sm me-2" id="viewCalendarRecordBtn"><i class="fas fa-calendar-alt"></i> Ver agenda</button>
+                            <button class="btn btn-light btn-sm" id="backFromRecordBtn"><i class="fas fa-arrow-left"></i> Voltar</button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="alert alert-success d-none" role="alert" id="successMessageRecord">
+                            Avaliação cadastrada com sucesso!
+                        </div>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card mb-3">
+                                    <div class="card-body">
+                                        <h5 class="card-title" id="recordPatientNameSidebar">Patrick</h5>
+                                        <p class="card-text">ID: <span id="recordPatientId"></span></p>
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">
+                                                <strong>Celular:</strong> <span id="recordPatientPhone"></span>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <strong>Data de Nascimento:</strong> <span id="recordPatientBirthDate"></span>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <strong>Sexo:</strong> <span id="recordPatientGender"></span>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <strong>Endereço:</strong> <span id="recordPatientAddress"></span>
+                                            </li>
+                                        </ul>
+                                        <hr>
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Avaliações
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-avaliacoes">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Evoluções
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-evolucoes">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Agendado
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-agendado">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Não atendido
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-nao-atendido">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Atendido
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-atendido">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Não atendido (Sem cobrança)
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-nao-atendido-sem-cobranca">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Remarcar
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-remarcar">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Faltou
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-faltou">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Presença confirmada
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-presenca-confirmada">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Cancelado
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-cancelado">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                                Faltou (com aviso prévio)
+                                                <span class="badge rounded-pill bg-secondary ms-auto me-2" id="count-faltou-com-aviso">0</span>
+                                                <i class="fas fa-eye text-muted"></i>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    </div>
+                                <div class="card mt-3">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Documentos</h6>
+                                        <ul class="list-group list-group-flush">
+                                            <li class="list-group-item">
+                                                <button class="btn btn-sm btn-outline-secondary w-100 mb-2">Documentos padrão</button>
+                                            </li>
+                                            <li class="list-group-item">
+                                                <button class="btn btn-sm btn-outline-secondary w-100">Documentos personalizados</button>
+                                            </li>
+                                        </ul>
+                                    </div>
+                                    </div>
+                                <div class="card mt-3">
+                                    <div class="card-body">
+                                        <h6 class="card-title">Sobre o paciente</h6>
+                                        <button type="button" class="btn btn-sm btn-primary float-end" id="editPatientFromRecordBtn"><i class="fas fa-edit"></i> Editar</button>
+                                        <p class="alert alert-warning mt-2">
+                                            <i class="fas fa-exclamation-triangle"></i> Os dados do paciente <span id="incompletePatientName"></span> estão incompletos!
+                                            <button type="button" class="btn btn-info btn-sm d-block mt-2" id="completePatientRegistrationBtn">Clique aqui para completar o cadastro do paciente</button>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-9">
+                                <div class="d-flex justify-content-between mb-3">
+                                    <div>
+                                        <input type="text" class="form-control d-inline-block w-auto me-2" placeholder="Senha/Autorização/Autenticador">
+                                        <select class="form-select d-inline-block w-auto me-2">
+                                            <option>Mostrar: Todos</option>
+                                        </select>
+                                    </div>
+                                    <div>
+                                        <select class="form-select d-inline-block w-auto me-2">
+                                            <option>Profissional/Usuário: Todos</option>
+                                        </select>
+                                        <input type="date" class="form-control d-inline-block w-auto me-2" value="2025-06-01">
+                                        <span class="align-middle">-</span>
+                                        <input type="date" class="form-control d-inline-block w-auto ms-1" value="2025-06-30">
+                                        <button class="btn btn-outline-secondary me-2"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                                        <button class="btn btn-outline-secondary">Planos de tratamento</button>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-between mb-3">
+                                    <h5 id="currentRecordPatientName">Patrick</h5>
+                                    <div>
+                                        <select class="form-select d-inline-block w-auto me-2">
+                                            <option>Ordem: Decrescente</option>
+                                            <option>Ordem: Crescente</option>
+                                        </select>
+                                        <i class="fas fa-sort-amount-down text-muted"></i>
+                                    </div>
+                                </div>
+
+                                <div id="recordTimeline">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer d-flex justify-content-between align-items-center">
+                        <button class="btn btn-success me-2" id="newEvaluationRecordBtn"><i class="fas fa-check-square"></i> Nova avaliação</button>
+                        <button class="btn btn-info me-2" id="newEvolutionRecordBtn"><i class="fas fa-chart-line"></i> Nova evolução</button>
+                        <button class="btn btn-secondary" id="generatedFilesRecordBtn"><i class="fas fa-file"></i> Arquivos gerados</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="container-fluid p-0 d-none" id="appointmentsOverviewSection">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-info text-white">
+                        <h5 class="mb-0">Todos os Atendimentos</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="p-3 mb-4 border rounded bg-light">
+                            <div class="row g-3 align-items-end mb-3">
+                                <div class="col-md-2">
+                                    <label for="appointmentFilterStatus" class="form-label">Status:</label>
+                                    <select id="appointmentFilterStatus" class="form-select">
+                                        <option value="Todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="appointmentFilterProfessional" class="form-label">Profissional:</label>
+                                    <select id="appointmentFilterProfessional" class="form-select">
+                                        <option value="Todos">Todos</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Período:</label>
+                                    <div class="input-group">
+                                        <input type="date" id="appointmentStartDateFilter" class="form-control">
+                                        <span class="input-group-text">até</span>
+                                        <input type="date" id="appointmentEndDateFilter" class="form-control">
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                     <label for="appointmentSearchInput" class="form-label">Pesquisar Paciente:</label>
+                                    <div class="input-group">
+                                        <input type="search" id="appointmentSearchInput" class="form-control" placeholder="Digite o nome do paciente...">
+                                        <button class="btn btn-outline-secondary" type="button" id="appointmentSearchBtn">
+                                            <i class="fas fa-search"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="row g-3 align-items-center">
+                                <div class="col-md-auto">
+                                    <div class="d-flex align-items-center">
+                                        <select id="appointmentsPerPage" class="form-select form-select-sm me-2" style="width: auto;">
+                                            <option value="10">10</option>
+                                            <option value="25" selected>25</option>
+                                            <option value="50">50</option>
+                                            <option value="100">100</option>
+                                        </select>
+                                        <label for="appointmentsPerPage" class="form-label mb-0 text-nowrap">resultados por página</label>
+                                    </div>
+                                </div>
+                                <div class="col-md d-flex justify-content-end">
+                                    <button id="exportAppointmentsExcelBtn" class="btn btn-sm btn-outline-success me-2">
+                                        <i class="fas fa-file-excel"></i> Exportar para Excel
+                                    </button>
+                                    <button id="refreshAppointmentsBtn" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-sync-alt"></i> Atualizar Lista
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Data</th>
+                                        <th>Horário</th>
+                                        <th>Paciente</th>
+                                        <th>Profissional</th>
+                                        <th>Status</th>
+                                        <th>Convênio</th>
+                                        <th>Procedimento</th>
+                                        <th>Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="appointmentsListTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <small id="appointmentsPaginationInfo">Mostrando de 1 até X de Y registros</small>
+                            <nav>
+                                <ul class="pagination mb-0" id="appointmentsPagination">
+                                </ul>
+                            </nav>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <section id="remindersSection" class="p-4 d-none">
+                <div class="container-fluid">
+                    <div class="d-flex justify-content-between align-items-center mb-4">
+                        <h2 class="h4">Gerenciador de Lembretes do WhatsApp</h2>
+                        <button class="btn btn-outline-primary" id="refreshRemindersBtn">
+                            <i class="fas fa-sync-alt me-2"></i>Atualizar Lista
+                        </button>
+                    </div>
+                    <div class="card shadow-sm mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtrar Lembretes</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="remindersFilterForm" class="row g-3 align-items-end">
+                                <div class="col-md-3">
+                                    <label for="reminderFilterStatus" class="form-label">Status</label>
+                                    <select id="reminderFilterStatus" class="form-select">
+                                        <option value="Todos" selected>Todos</option>
+                                        <option value="agendado">Agendado</option>
+                                        <option value="enviado">Enviado</option>
+                                        <option value="cancelado">Cancelado</option>
+                                        <option value="falhou">Falhou</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="reminderFilterPatientName" class="form-label">Nome do Paciente</label>
+                                    <input type="text" id="reminderFilterPatientName" class="form-control" placeholder="Digite o nome para buscar...">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="reminderFilterStartDate" class="form-label">Data de (Envio)</label>
+                                    <input type="date" id="reminderFilterStartDate" class="form-control">
+                                </div>
+                                <div class="col-md-2">
+                                    <label for="reminderFilterEndDate" class="form-label">Data até (Envio)</label>
+                                    <input type="date" id="reminderFilterEndDate" class="form-control">
+                                </div>
+                                <div class="col-md-1">
+                                    <button type="button" id="clearReminderFiltersBtn" class="btn btn-secondary w-100" title="Limpar filtros">
+                                        <i class="fas fa-eraser"></i>
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                    <div class="card shadow-sm">
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Status</th>
+                                            <th>Paciente</th>
+                                            <th>Data Agendada (Envio)</th>
+                                            <th>Mensagem</th>
+                                            <th>Ações</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="remindersListTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+
+    <!-- Modais da Aplicação -->
+    <div class="modal fade" id="appointmentModal" tabindex="-1" aria-labelledby="appointmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="appointmentModalLabel">Novo agendamento</h5>
+                    <div class="d-flex align-items-center">
+                        <button type="button" class="btn btn-outline-secondary btn-sm me-2" id="blockHourBtn">
+                            <i class="fas fa-lock"></i> Bloquear horário
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <form id="appointmentForm">
+                        <input type="hidden" id="appointmentId">
+                        <input type="hidden" id="patientIdForAppointment">
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="appointmentDate" class="form-label">Data:*</label>
+                                <input type="date" class="form-control" id="appointmentDate" required>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="appointmentStartHour" class="form-label">Horário:*</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">das</span>
+                                    <input type="time" class="form-control" id="appointmentStartHour" required>
+                                    <span class="input-group-text">às</span>
+                                    <input type="time" class="form-control" id="appointmentEndHour">
+                                    <div class="form-check form-check-inline ms-2 d-flex align-items-center">
+                                        <input class="form-check-input" type="checkbox" id="repeatAppointment">
+                                        <label class="form-check-label" for="repeatAppointment">Repetir</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input class="form-check-input" type="checkbox" id="realizeFitment">
+                            <label class="form-check-label" for="realizeFitment">
+                                Realizar encaixe de horário para o atendimento <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Detalhes sobre encaixe de horário."></i>
+                            </label>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="professional" class="form-label">Profissional:*</label>
+                            <div class="input-group">
+                                <select class="form-select" id="professional" required>
+                                    <option value="">Selecione o profissional</option>
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#professionalModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
+                            <small class="form-text text-muted">
+                                <i class="fas fa-info-circle"></i> Verifique o horário de trabalho e o horário de intervalo de cada profissional.
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="patient" class="form-label">Paciente:*</label>
+                            <div style="position: relative;">
+                                <input type="text" class="form-control" id="patient" placeholder="Nome do paciente" required>
+                                <div id="patientSuggestions" class="list-group position-absolute w-100"></div>
+                                <small id="patientInfoMessage" class="form-text text-muted d-none">
+                                    Um novo paciente com o nome de <strong id="newPatientNamePlaceholder"></strong> será cadastrado automaticamente no sistema.
+                                    Caso o paciente já existir, digite novamente e clique em um dos nomes sugeridos.
+                                </small>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="agreement" class="form-label">Convênio:*</label>
+                                <select class="form-select" id="agreement" required>
+                                    <option value="Particular">Particular</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="authCode" class="form-label">Senha/Autorização/Autenticador: <i class="fas fa-info-circle text-muted" data-bs-toggle="tooltip" title="Informações sobre senha/autorização."></i></label>
+                                <input type="text" class="form-control" id="authCode">
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="procedure" class="form-label">Procedimento:</label>
+                                <select class="form-select" id="procedure">
+                                    <option value="">Selecione o procedimento</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end mb-2">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="launchFinancial">
+                                    <label class="form-check-label" for="launchFinancial">
+                                        Lançar atendimento no financeiro
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="status" class="form-label">Status:</label>
+                                <select class="form-select" id="status">
+                                    <option value="Agendado">Agendado</option>
+                                    <option value="Confirmado">Confirmado</option>
+                                    <option value="Cancelado">Cancelado</option>
+                                    <option value="Atendido">Atendido</option>
+                                    <option value="Faltou">Faltou</option>
+                                    <option value="Remarcar">Remarcar</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="room" class="form-label">Sala:</label>
+                                <select class="form-select" id="room">
+                                    <option value="">Selecione a sala</option>
+                                </select>
+                                <a href="#" class="mt-1 d-block"><i class="fas fa-plus"></i> Cadastrar sala</a>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="cellphone" class="form-label">Celular:</label>
+                                <input type="text" class="form-control" id="cellphone" placeholder="(__) _____-____">
+                            </div>
+                            <div class="col-md-4">
+                                <label for="smsReminder" class="form-label">Lembrete SMS:</label>
+                                <select class="form-select" id="smsReminder">
+                                    <option value="Sem lembrete">Sem lembrete</option>
+                                    <option value="1 hora antes" disabled>1 hora antes (Indisponível)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <label for="whatsappReminder" class="form-label">Lembrete WhatsApp:</label>
+                                <select class="form-select" id="whatsappReminder">
+                                    <option value="Sem lembrete">Sem lembrete</option>
+                                    <option value="Enviar agora">Enviar agora</option>
+                                    <option value="1 hora antes">1 hora antes</option>
+                                    <option value="2 horas antes">2 horas antes</option>
+                                    <option value="3 horas antes">3 horas antes</option>
+                                    <option value="4 horas antes">4 horas antes</option>
+                                    <option value="5 horas antes">5 horas antes</option>
+                                    <option value="6 horas antes">6 horas antes</option>
+                                    <option value="7 horas antes">7 horas antes</option>
+                                    <option value="8 horas antes">8 horas antes</option>
+                                    <option value="9 horas antes">9 horas antes</option>
+                                    <option value="10 horas antes">10 horas antes</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="observations" class="form-label">Observações:</label>
+                            <textarea class="form-control" id="observations" rows="3"></textarea>
+                        </div>
+
+                        <hr> <div class="d-flex justify-content-between align-items-center">
+                            <button type="button" class="btn btn-link text-decoration-none">
+                                <i class="fas fa-cog"></i> Configurações da agenda
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-danger me-2" id="deleteAppointmentBtn" style="display:none;">Excluir Agendamento</button>
+                                <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Fechar</button>
+                                <button type="submit" class="btn btn-primary">Salvar</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="whatsappModal" tabindex="-1" aria-labelledby="whatsappModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="whatsappModalLabel">Conexão com WhatsApp</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body text-center">
+            <p>Para enviar lembretes, seu servidor precisa estar conectado ao WhatsApp.</p>
+            <p><strong>Status Atual:</strong> <span id="whatsapp-status" class="badge bg-secondary">Desconhecido</span></p>
+            <div id="whatsapp-qr-container" class="my-3">
+                <p>Se o status for "Aguardando QR Code", a imagem para escanear aparecerá abaixo.</p>
+                <div id="whatsapp-qr-code"></div>
+            </div>
+            <p class="text-muted"><small>Esta janela busca o status do seu servidor. Certifique-se de que ele esteja rodando.</small></p>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-success" id="reconnectWhatsappBtn">Conectar / Gerar QR Code</button>
+            <button type="button" class="btn btn-primary" id="checkWhatsappStatusBtn">Verificar Status</button>
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal fade" id="repeatSetupModal" tabindex="-1" aria-labelledby="repeatSetupModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="repeatSetupModalLabel">Configurar Repetição de Agendamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="repeatSetupForm">
+                        <div class="mb-3">
+                            <label for="repeatFrequency" class="form-label">Frequência</label>
+                            <select class="form-select" id="repeatFrequency" required>
+                                <option value="Semanal">Semanalmente</option>
+                                <option value="Quinzenal">Quinzenalmente</option>
+                                <option value="Mensal">Mensalmente</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Dias para repetir</label>
+                            <div id="repeatDaysOfWeek" class="d-flex justify-content-around">
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="Dom" id="dayDom">
+                                    <label class="form-check-label" for="dayDom">Dom</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="Seg" id="daySeg">
+                                    <label class="form-check-label" for="daySeg">Seg</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="Ter" id="dayTer">
+                                    <label class="form-check-label" for="dayTer">Ter</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="Qua" id="dayQua">
+                                    <label class="form-check-label" for="dayQua">Qua</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="Qui" id="dayQui">
+                                    <label class="form-check-label" for="dayQui">Qui</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="Sex" id="daySex">
+                                    <label class="form-check-label" for="daySex">Sex</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" value="Sáb" id="daySab">
+                                    <label class="form-check-label" for="daySab">Sáb</label>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="repeatSessionCount" class="form-label">Deseja repetir em quantas sessões?</label>
+                            <div class="input-group">
+                                <input type="number" class="form-control" id="repeatSessionCount" value="10" min="1" required>
+                                <span class="input-group-text">sessões</span>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                            <button type="submit" class="btn btn-primary" id="repeatSetupSaveBtn">Salvar Configuração</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CORREÇÃO: Modal do profissional movido para fora do outro modal -->
+    <div class="modal fade" id="professionalModal" tabindex="-1" aria-labelledby="professionalModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="professionalModalLabel">Cadastrar Profissional</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="professionalForm">
+                        <input type="hidden" id="professionalId">
+                        <div class="mb-3">
+                            <label for="professionalName" class="form-label">Nome do Profissional:*</label>
+                            <input type="text" class="form-control" id="professionalName" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="professionalSpecialty" class="form-label">Especialidade:</label>
+                            <input type="text" class="form-control" id="professionalSpecialty">
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Salvar Profissional</button>
+                        </div>
+                    </form>
+
+                    <hr>
+                    <h5>Profissionais Cadastrados</h5>
+                    <ul id="professionalList" class="list-group">
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="modal fade" id="viewAppointmentModal" tabindex="-1" aria-labelledby="viewAppointmentModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewAppointmentModalLabel">Horário: <span id="viewAppointmentTime"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p><strong>Psicóloga:</strong> <span id="viewProfessionalName"></span></p>
+                    <p><strong>Paciente:</strong> <span id="viewPatientName"></span></p>
+                    <p><strong>Celular:</strong> <span id="viewCellphone"></span></p>
+                    <p><strong>Convênio:</strong> <span id="viewAgreement"></span></p>
+                    <p><strong>Status:</strong>
+                        <select class="form-select d-inline-block w-auto" id="viewStatusSelect">
+                            <option value="Agendado">Agendado</option>
+                            <option value="Confirmado">Confirmado</option>
+                            <option value="Cancelado">Cancelado</option>
+                            <option value="Atendido">Atendido</option>
+                            <option value="Faltou">Faltou</option>
+                            <option value="Remarcar">Remarcar</option>
+                        </select>
+                    </p>
+                    <p><strong>Senha:</strong> <span id="viewAuthCode"></span></p>
+
+                    <div class="d-flex flex-column mb-3">
+                        <button type="button" class="btn btn-outline-secondary mb-2" id="generateSPSADTBtn">
+                            <i class="fas fa-table"></i> Gerar SP/SADT <i class="fas fa-caret-down"></i>
+                        </button>
+                        <button type="button" class="btn btn-info text-white mb-3" id="sendPreEvaluationBtn">
+                            Enviar pré-avaliação
+                        </button>
+                    </div>
+
+                    <div class="d-flex justify-content-around">
+                        <div class="btn-group me-2">
+                            <button type="button" class="btn btn-success dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" id="startServiceBtn">
+                                <i class="fas fa-play"></i> Iniciar atendimento
+                            </button>
+                            <ul class="dropdown-menu">
+                                <li><a class="dropdown-item" href="#" id="startEvaluationBtn"><i class="fas fa-check-square me-2"></i> Iniciar avaliação</a></li>
+                                <li><a class="dropdown-item" href="#" id="startEvolutionBtn"><i class="fas fa-chart-line me-2"></i> Iniciar evolução</a></li>
+                            </ul>
+                        </div>
+
+                        <button type="button" class="btn btn-primary me-2" id="editAppointmentBtn">
+                            <i class="fas fa-edit"></i> Editar
+                        </button>
+                        <button type="button" class="btn btn-outline-success me-2 d-none" id="renewRepeatBtnView"> 
+                            <i class="fas fa-sync-alt"></i> Renovar Repetição
+                        </button>
+                        <button type="button" class="btn btn-danger" id="deleteAppointmentViewBtn">
+                            <i class="fas fa-trash"></i> Excluir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="evaluationModal" tabindex="-1" aria-labelledby="evaluationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="evaluationModalLabel">Nova avaliação para <span id="evaluationPatientName"></span></h5>
+                    <div class="d-flex align-items-center">
+                        <button type="button" class="btn btn-outline-secondary btn-sm me-2">
+                            <i class="fas fa-history"></i> Histórico do paciente
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <form id="evaluationForm">
+                        <input type="hidden" id="evaluationAppointmentId">
+                        <input type="hidden" id="evaluationId">
+                        <input type="hidden" id="evaluationPatientId">
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="evaluationDate" class="form-label">Data:*</label>
+                                <input type="date" class="form-control" id="evaluationDate" required>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="evaluationStartHour" class="form-label">Horário do atendimento:*</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">das</span>
+                                    <input type="time" class="form-control" id="evaluationStartHour" required>
+                                    <span class="input-group-text">às</span>
+                                    <input type="time" class="form-control" id="evaluationEndHour">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="evaluationAgreement" class="form-label">Convênio:*</label>
+                                <select class="form-select" id="evaluationAgreement" required>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="evaluationAuthCode" class="form-label">Senha/Autorização/Autenticador:</label>
+                                <input type="text" class="form-control" id="evaluationAuthCode">
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input class="form-check-input" type="checkbox" id="evaluationLaunchFinancial">
+                            <label class="form-check-label" for="evaluationLaunchFinancial">
+                                Lançar atendimento no financeiro
+                            </label>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="evaluationProcedure" class="form-label">Procedimento:</label>
+                                <select class="form-select" id="evaluationProcedure">
+                                    <option value="">Selecionar mais procedimentos</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="#" class="mt-1 d-block"><i class="fas fa-plus"></i> Selecionar mais procedimentos</a>
+                            </div>
+                        </div>
+
+                        <ul class="nav nav-tabs mb-3" id="evaluationTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="standard-evaluation-tab" data-bs-toggle="tab" data-bs-target="#standard-evaluation" type="button" role="tab" aria-controls="standard-evaluation" aria-selected="true">Avaliações padrão</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="audio-evaluation-tab" data-bs-toggle="tab" data-bs-target="#audio-evaluation" type="button" role="tab" aria-controls="audio-evaluation" aria-selected="false">Avaliação via áudio</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="new-model-tab" data-bs-toggle="tab" data-bs-target="#new-model" type="button" role="tab" aria-controls="new-model" aria-selected="false"><i class="fas fa-plus"></i> Novo modelo de avaliação</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content" id="evaluationTabsContent">
+                            <div class="tab-pane fade show active" id="standard-evaluation" role="tabpanel" aria-labelledby="standard-evaluation-tab">
+                                <h6>Anamnese</h6>
+                                <div class="mb-3">
+                                    <label for="mainComplaint" class="form-label">Queixa principal (QP) / Motivo da avaliação:</label>
+                                    <div id="mainComplaintEditor" style="height: 150px;"></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="currentDiseaseHistory" class="form-label">História da doença atual (HDA):</label>
+                                    <div id="currentDiseaseHistoryEditor" style="height: 150px;"></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="pastMedicalHistory" class="form-label">História médica pregressa (HMP):</label>
+                                    <div id="pastMedicalHistoryEditor" style="height: 150px;"></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="familyHistory" class="form-label">Histórico familiar (HF):</label>
+                                    <div id="familyHistoryEditor" style="height: 150px;"></div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="evaluationObservations" class="form-label">Observações:</label>
+                                    <div id="evaluationObservationsEditor" style="height: 150px;"></div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="audio-evaluation" role="tabpanel" aria-labelledby="audio-evaluation-tab">
+                                <p>Conteúdo para avaliação via áudio (a ser implementado).</p>
+                            </div>
+                            <div class="tab-pane fade" id="new-model" role="tabpanel" aria-labelledby="new-model-tab">
+                                <p>Conteúdo para novo modelo de avaliação (a ser implementado).</p>
+                            </div>
+                        </div>
+
+                        <hr>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="evolutionModal" tabindex="-1" aria-labelledby="evolutionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="evolutionModalLabel">Nova evolução para <span id="evolutionPatientName"></span></h5>
+                    <div class="d-flex align-items-center">
+                        <button type="button" class="btn btn-outline-secondary btn-sm me-2">
+                            <i class="fas fa-history"></i> Histórico do paciente
+                        </button>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                </div>
+                <div class="modal-body">
+                    <form id="evolutionForm">
+                        <input type="hidden" id="evolutionAppointmentId">
+                        <input type="hidden" id="evolutionId">
+                        <input type="hidden" id="evolutionPatientId">
+
+                        <div class="row mb-3">
+                            <div class="col-md-4">
+                                <label for="evolutionDate" class="form-label">Data:*</label>
+                                <input type="date" class="form-control" id="evolutionDate" required>
+                            </div>
+                            <div class="col-md-8">
+                                <label for="evolutionStartHour" class="form-label">Horário do atendimento:*</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">das</span>
+                                    <input type="time" class="form-control" id="evolutionStartHour" required>
+                                    <span class="input-group-text">às</span>
+                                    <input type="time" class="form-control" id="evolutionEndHour">
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="evolutionAgreement" class="form-label">Convênio:*</label>
+                                <select class="form-select" id="evolutionAgreement" required>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="evolutionAuthCode" class="form-label">Senha/Autorização/Autenticador:</label>
+                                <input type="text" class="form-control" id="evolutionAuthCode">
+                            </div>
+                        </div>
+
+                        <div class="mb-3 form-check">
+                            <input class="form-check-input" type="checkbox" id="evolutionLaunchFinancial">
+                            <label class="form-check-label" for="evolutionLaunchFinancial">
+                                Lançar atendimento no financeiro
+                            </label>
+                        </div>
+
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="evolutionProcedure" class="form-label">Procedimento:</label>
+                                <select class="form-select" id="evolutionProcedure">
+                                    <option value="">Selecionar mais procedimentos</option>
+                                    <option value="Avaliação">Avaliação</option>
+                                    <option value="Psicoterapia">Psicoterapia</option>   
+                                    <option value="Orientação Parental">Orientação Pariental</option>   
+                                    <option value="Reunião/Visita Escolar">Reunião/Visita Escolar</option>
+                                    <option value="Reunião de Equipe">Reunião de Equipe</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <a href="#" class="mt-1 d-block"><i class="fas fa-plus"></i> Selecionar mais procedimentos</a>
+                            </div>
+                        </div>
+
+                        <ul class="nav nav-tabs mb-3" id="evolutionTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="evolution-content-tab" data-bs-toggle="tab" data-bs-target="#evolution-content" type="button" role="tab" aria-controls="evolution-content" aria-selected="true">Conteúdo da Evolução</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="evolution-files-tab" data-bs-toggle="tab" data-bs-target="#evolution-files" type="button" role="tab" aria-controls="evolution-files" aria-selected="false">Anexar Arquivos</button>
+                            </li>
+                        </ul>
+                        <div class="tab-content" id="evolutionTabsContent">
+                            <div class="tab-pane fade show active" id="evolution-content" role="tabpanel" aria-labelledby="evolution-content-tab">
+                                <div class="mb-3">
+                                    <label for="evolutionContentEditor" class="form-label">Conteúdo da Evolução:</label>
+                                    <div id="evolutionContentEditor" style="height: 250px;"></div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="evolution-files" role="tabpanel" aria-labelledby="evolution-files-tab">
+                                <div class="mb-3">
+                                    <label for="attachedFiles" class="form-label">Anexar arquivos (imagens, PDFs, etc.):</label>
+                                    <input type="file" class="form-control" id="attachedFiles" multiple>
+                                    <small class="form-text text-muted">
+                                        Arquivos não serão salvos offline sem uma integração de backend/armazenamento.
+                                    </small>
+                                </div>
+                                <p>Lista de arquivos anexados (a ser implementado).</p>
+                            </div>
+                        </div>
+
+                        <hr>
+                        <div class="d-flex justify-content-end">
+                            <button type="submit" class="btn btn-primary">Salvar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="detailedEvaluationModal" tabindex="-1" aria-labelledby="detailedEvaluationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailedEvaluationModalLabel">Detalhes da Avaliação de <span id="detailedEvalPatientNameHeader"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Paciente:</strong> <span id="detailedEvalPatientName"></span></p>
+                            <p><strong>Data/Hora do Atendimento:</strong> <span id="detailedEvalDateTime"></span></p>
+                            <p><strong>Convênio:</strong> <span id="detailedEvalAgreement"></span></p>
+                            <p><strong>Profissional:</strong> <span id="detailedEvalProfessional"></span></p>
+                            <p><strong>Senha/Autorização/Autenticador:</strong> <span id="detailedEvalAuthCode"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Data de Nascimento:</strong> <span id="detailedEvalBirthDate"></span></p>
+                            <p><strong>Gênero:</strong> <span id="detailedEvalGender"></span></p>
+                            <p><strong>Endereço:</strong> <span id="detailedEvalAddress"></span></p>
+                            <p><strong>Celular:</strong> <span id="detailedEvalCellphone"></span></p>
+                            <button type="button" class="btn btn-sm btn-outline-secondary" id="detailedEvalPatientHistoryLink">
+                                <i class="fas fa-history"></i> Ver Histórico Completo
+                            </button>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6>Conteúdo da Avaliação:</h6>
+                    <div class="mb-3">
+                        <label class="form-label">Queixa principal (QP) / Motivo da avaliação:</label>
+                        <div id="detailedEvalMainComplaint" class="quill-read-only-content"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">História da doença atual (HDA):</label>
+                        <div id="detailedEvalCurrentDiseaseHistory" class="quill-read-only-content"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">História médica pregressa (HMP):</label>
+                        <div id="detailedEvalPastMedicalHistory" class="quill-read-only-content"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Histórico familiar (HF):</label>
+                        <div id="detailedEvalFamilyHistory" class="quill-read-only-content"></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Observações:</label>
+                        <div id="detailedEvalObservations" class="quill-read-only-content"></div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" id="detailedEvalGeneratePdfBtn"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="detailedEvolutionModal" tabindex="-1" aria-labelledby="detailedEvolutionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="detailedEvolutionModalLabel">Detalhes da Evolução de <span id="detailedEvolPatientNameHeader"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Paciente:</strong> <span id="detailedEvolPatientName"></span></p>
+                            <p><strong>Data/Hora do Atendimento:</strong> <span id="detailedEvolDateTime"></span></p>
+                            <p><strong>Convênio:</strong> <span id="detailedEvolAgreement"></span></p>
+                            <p><strong>Profissional:</strong> <span id="detailedEvolProfessional"></span></p>
+                            <p><strong>Senha/Autorização/Autenticador:</strong> <span id="detailedEvolAuthCode"></span></p>
+                            <p><strong>Procedimento:</strong> <span id="detailedEvolProcedure"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <button type="button" class="btn btn-sm btn-outline-secondary mt-4" id="detailedEvolPatientHistoryLink">
+                                <i class="fas fa-history"></i> Ver Histórico Completo
+                            </button>
+                        </div>
+                    </div>
+                    <hr>
+                    <h6>Conteúdo da Evolução:</h6>
+                    <div class="mb-3">
+                        <div id="detailedEvolContent" class="quill-read-only-content"></div>
+                    </div>
+                    </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary me-2" id="detailedEvolEditBtn"><i class="fas fa-edit"></i> Editar</button>
+                    <button type="button" class="btn btn-success" id="detailedEvolGeneratePdfBtn"><i class="fas fa-file-pdf"></i> Gerar PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="unblockHourModal" tabindex="-1" aria-labelledby="unblockHourModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="unblockHourModalLabel">Desbloquear Horário</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Você está prestes a desbloquear o horário:</p>
+                    <p><strong>Data:</strong> <span id="unblockDate"></span></p>
+                    <p><strong>Hora:</strong> <span id="unblockTime"></span></p>
+                    <p>Ao confirmar, este horário ficará disponível para agendamento novamente.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" id="unblockConfirmBtn">Confirmar Desbloqueio</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <div class="modal fade" id="patientFormModal" tabindex="-1" aria-labelledby="patientDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="patientDetailsModalLabel">Cadastrar Novo Paciente</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="patientDetailsForm">
+                        <input type="hidden" id="patientDetailsId">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="patientDetailsName" class="form-label">Nome Completo:*</label>
+                                <input type="text" class="form-control" id="patientDetailsName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="patientDetailsCellphone" class="form-label">Celular:*</label>
+                                <input type="text" class="form-control" id="patientDetailsCellphone" placeholder="(__) _____-____" required>
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="patientDetailsBirthDate" class="form-label">Data de Nascimento:</label>
+                                <input type="date" class="form-control" id="patientDetailsBirthDate">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="patientDetailsCpf" class="form-label">CPF:</label>
+                                <input type="text" class="form-control" id="patientDetailsCpf" placeholder="___.___.___-__">
+                            </div>
+                        </div>
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label for="patientDetailsCity" class="form-label">Cidade:</label>
+                                <input type="text" class="form-control" id="patientDetailsCity">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="patientDetailsAgreement" class="form-label">Convênio:</label>
+                                <select class="form-select" id="patientDetailsAgreement">
+                                    <option value="Assoc. HC">Assoc. HC</option>
+                                    <option value="BRF">BRF</option>
+                                    <option value="Capacemu">Capacemu</option>
+                                    <option value="Cassi">Cassi</option>
+                                    <option value="Particular">Particular</option>
+                                    <option value="Social">Social</option>
+                                    <option value="Unimed">Unimed</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="patientDetailsAddress" class="form-label">Endereço:</label>
+                            <input type="text" class="form-control" id="patientDetailsAddress">
+                        </div>
+                        <div class="mb-3">
+                            <label for="patientDetailsObservations" class="form-label">Observações:</label>
+                            <textarea class="form-control" id="patientDetailsObservations" rows="3"></textarea>
+                        </div>
+                        <div class="mb-3 form-check">
+                            <input type="checkbox" class="form-check-input" id="patientDetailsIsArchived">
+                            <label class="form-check-label" for="patientDetailsIsArchived">Paciente Arquivado/Inativo</label>
+                        </div>
+                        <div class="d-flex justify-content-end">
+                            <button type="button" class="btn btn-secondary me-2" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="submit" class="btn btn-primary">Salvar Paciente</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="eventTooltip" class="custom-tooltip d-none">
+        <p><strong>Horário:</strong> <span id="tooltipTime"></span></p>
+        <p><strong>Psicóloga:</strong> <span id="tooltipProfessional"></span></p>
+        <p><strong>Paciente:</strong> <span id="tooltipPatient"></span></p>
+        <p><strong>Celular:</strong> <span id="tooltipCellphone"></span></p>
+        <p><strong>Convênio:</strong> <span id="tooltipAgreement"></span></p>
+        <p><strong>Status:</strong> <span id="tooltipStatus"></span></p>
+        <p><strong>Procedimento:</strong> <span id="tooltipProcedure"></span></p>
+        <div id="repetido-info" style="display: none; font-size: 0.9em; color: #555; margin-top: 5px;"></div>
+        <hr>
+        <div id="tooltipButtons" class="tooltip-buttons">
+            <button type="button" class="btn btn-sm btn-success" id="ver-evolucao-btn" style="display: none;">+ Ver evolução</button>
+            <button type="button" class="btn btn-sm btn-info" id="add-repetition-btn" style="display: none;"><i class="fas fa-redo"></i> Repetição</button>
+            <button type="button" class="btn btn-sm btn-primary" id="renovar-repeticao-btn" style="display: none;"><i class="fas fa-sync-alt"></i> Renovar repetição</button>
+        </div>
+    </div>
+
+    <div class="modal fade" id="repeatConfigModal" tabindex="-1" aria-labelledby="repeatConfigModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="repeatConfigModalLabel">Configurar Repetição de Agendamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Defina as regras para a repetição deste novo agendamento.</p>
+                    <div class="mb-3">
+                        <label class="form-label">Frequência:</label>
+                        <select class="form-select" id="repeatFrequency">
+                            <option value="Semanal">Semanalmente</option>
+                            <option value="Quinzenal">Quinzenalmente</option>
+                            <option value="Mensal">Mensalmente</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Dias para repetir:</label><br>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="repeatDays" value="Dom"> <label class="form-check-label">Dom</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="repeatDays" value="Seg"> <label class="form-check-label">Seg</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="repeatDays" value="Ter"> <label class="form-check-label">Ter</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="repeatDays" value="Qua"> <label class="form-check-label">Qua</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="repeatDays" value="Qui"> <label class="form-check-label">Qui</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="repeatDays" value="Sex"> <label class="form-check-label">Sex</label></div>
+                        <div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="repeatDays" value="Sáb"> <label class="form-check-label">Sáb</label></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Quantidade de agendamentos:</label>
+                        <input type="number" class="form-control" id="repeatSessionCount" value="60" min="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" id="saveRepeatConfigBtn">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="repeatRenewalModal" tabindex="-1" aria-labelledby="repeatRenewalModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="repeatRenewalModalLabel">Renovar repetição de agendamento</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Ao confirmar, o sistema irá renovar a repetição respeitando as mesmas regras adicionadas na repetição original.</p>
+                    <h6>Detalhes da repetição:</h6>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Frequência:</label>
+                        <span id="repeatRenewalFrequency"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Dias para repetir:</label>
+                        <span id="repeatRenewalDays"></span>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Quantidade de agendamentos:</label>
+                        <span id="repeatRenewalSessionCount"></span>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label for="newRepeatSessionCount" class="form-label fw-bold">Deseja repetir novamente em quantas sessões?</label>
+                        <input type="number" class="form-control" id="newRepeatSessionCount" value="60" min="1">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="renewRepeatCancelBtn" data-bs-dismiss="modal">Fechar</button>
+                    <button type="button" class="btn btn-primary" id="renewRepeatSaveBtn">Salvar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+      <!-- ***** CORREÇÃO APLICADA AQUI: ORDEM DOS SCRIPTS ***** -->
+    <!-- Carregamos primeiro as bibliotecas externas, garantindo que o Bootstrap esteja pronto. -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- Depois, carregamos os seus scripts da aplicação como módulos. -->
+    <!-- Adicionamos um parâmetro de versão para forçar o navegador a recarregar este script -->
+    <script type="module" src="firebase-config.js?v=2"></script>
+    <script type="module" src="whatsapp-client.js?v=2"></script>
+    <script type="module" src="app.js?v=2"></script>
+    
+</body>
+</html>

@@ -1,0 +1,44 @@
+[
+  {
+    "id": "rVzEN7oUZa2cdNN1lDYJ",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *09:00*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T02:07:21.865Z",
+    "status": "falhou"
+  },
+  {
+    "id": "rWWh2ReWljpiiOLJ6fWO",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *10:00*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T02:12:44.999Z",
+    "status": "enviado"
+  },
+  {
+    "id": "19FUTiYBTUpSyN8YaDJW",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *08:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T02:14:39.214Z",
+    "status": "enviado"
+  },
+  {
+    "id": "bToAb1yWOxb9nZ4CfNyi",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *19/08/2025* às *08:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T02:14:39.214Z",
+    "status": "enviado"
+  },
+  {
+    "id": "vC8VZnL6ydqIneZzC23w",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *26/08/2025* às *08:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T02:14:39.214Z",
+    "status": "enviado"
+  },
+  {
+    "id": "KnA7DV7yEArC81Qdl6Mf",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *09:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T02:30:05.759Z",
+    "status": "enviado"
+  }
+]

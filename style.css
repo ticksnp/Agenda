@@ -1,0 +1,290 @@
+/* Reset básico para HTML e Body */
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow-x: hidden; /* Impede a barra de rolagem horizontal */
+    font-family: sans-serif;
+}
+
+/* Contêiner principal da aplicação (sidebar + content) */
+.d-flex.min-vh-100 {
+    height: 100vh;
+    align-items: stretch;
+}
+
+/* Estilos para a barra lateral */
+.sidebar {
+    width: 250px;
+    min-width: 250px;
+    flex-shrink: 0;
+    height: 100vh;
+    position: sticky;
+    top: 0;
+    padding: 1rem;
+    background-color: #343a40;
+    color: #fff;
+    
+    /* ***** CORREÇÃO REAPLICADA (Botão Sair) ***** */
+    /* Transforma a sidebar em um container flexível vertical para posicionar o botão Sair */
+    display: flex;
+    flex-direction: column;
+}
+.sidebar .nav-link {
+    color: #adb5bd;
+    padding: 10px 15px;
+    display: flex;
+    align-items: center;
+    border-radius: 0.25rem;
+    margin-bottom: 5px;
+}
+.sidebar .nav-link:hover {
+    background-color: #495057;
+    color: #fff;
+}
+.sidebar .nav-link.active {
+    background-color: #28a745;
+    color: #fff;
+}
+
+/* ***** CORREÇÃO REAPLICADA (Espaço do Ícone) ***** */
+/* Adiciona um espaço entre o ícone e o texto do menu */
+.sidebar .nav-link i {
+    margin-right: 10px; /* Espaçamento entre ícone e texto */
+    width: 20px;       /* Largura fixa para alinhamento */
+    text-align: center;
+}
+
+/* Área de conteúdo principal */
+.content-area {
+    flex-grow: 1;
+    padding: 0;
+    overflow-y: auto;
+    background-color: #f8f9fa;
+}
+
+.content-area .container-fluid {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: none;
+    width: 100%;
+    margin: 0;
+}
+
+#agendaSection .card {
+    margin: 0;
+    border-radius: 0;
+    border: none;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+#agendaSection .card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid #dee2e6;
+    padding: 1rem 1.25rem;
+}
+
+#agendaSection .card-body {
+    flex-grow: 1;
+    padding: 1.25rem;
+    overflow-y: auto;
+}
+
+#calendar {
+    width: 100%;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.fc-toolbar-title {
+    font-size: 1.5em;
+}
+
+.fc-button {
+    font-size: 0.9em;
+}
+
+.ql-editor-pdf-content {
+    min-height: 50px;
+    padding: 0;
+    border: none;
+    line-height: 1.5;
+    overflow: hidden;
+}
+
+.ql-toolbar.ql-bubble,
+.ql-toolbar.ql-snow {
+    display: none !important;
+}
+
+.ql-container.ql-bubble:not(.ql-disabled),
+.ql-container.ql-snow:not(.ql-disabled) {
+    border: none !important;
+}
+
+.fc-event-title {
+    white-space: normal !important;
+    word-wrap: break-word;
+    font-size: 0.85em;
+}
+
+.fc-event {
+    min-height: 40px;
+}
+
+.ql-editor-readonly {
+    border: 1px solid #ced4da;
+    border-radius: 0.25rem;
+    padding: 0.75rem 1rem;
+    min-height: 50px;
+    background-color: #e9ecef;
+    cursor: default;
+}
+
+#patientSuggestions {
+    position: absolute;
+    z-index: 1000;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    border: 1px solid #ced4da;
+    border-top: none;
+    border-radius: 0 0 .25rem .25rem;
+    background-color: #fff;
+    box-shadow: 0 0.5rem 1rem rgba(0,0,0,.15);
+}
+.patient-suggestion-item {
+    cursor: pointer;
+    padding: .5rem 1rem;
+}
+.patient-suggestion-item:hover {
+    background-color: #f8f9fa;
+}
+
+body {
+    padding-top: 0 !important;
+    background-color: #f8f9fa;
+}
+
+.modal-footer {
+    justify-content: space-between;
+}
+
+.navbar {
+    display: none;
+}
+
+/* Estilo para a seção de login */
+#loginSection {
+    width: 100vw;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-image: url('background-login.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    position: relative;
+}
+
+.login-logo {
+    max-width: 300px;
+    height: auto;
+    margin-bottom: 2rem;
+}
+
+.login-card {
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 15px;
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    padding: 2.5rem;
+    color: #333;
+    width: 100%;
+    max-width: 420px;
+}
+
+.login-card .card-title {
+    color: #5C4B2E;
+    font-weight: bold;
+    font-size: 1.8rem;
+}
+
+.login-card .form-label {
+    font-weight: 500;
+    color: #555;
+}
+
+.login-card .form-control {
+    border-color: #ddd;
+    box-shadow: none;
+}
+
+.login-card .form-control:focus {
+    border-color: #AC9562;
+    box-shadow: 0 0 0 0.25rem rgba(172, 149, 98, 0.25);
+}
+
+.login-btn {
+    background-color: #AC9562;
+    border-color: #AC9562;
+    font-weight: bold;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.login-btn:hover {
+    background-color: #927D56;
+    border-color: #927D56;
+}
+
+.login-btn-secondary {
+    background-color: #6C757D;
+    border-color: #6C757D;
+    font-weight: bold;
+    transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.login-btn-secondary:hover {
+    background-color: #5A6268;
+    border-color: #5A6268;
+}
+
+.login-link {
+    color: #AC9562;
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.login-link:hover {
+    color: #927D56;
+    text-decoration: underline;
+}
+
+.login-hr {
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+    margin: 1.5rem 0;
+}
+
+#loginSection::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.15);
+    z-index: 1;
+}
+
+#loginSection > * {
+    position: relative;
+    z-index: 2;
+}
+.filter-inactive {
+    color: #ccc !important;
+}
