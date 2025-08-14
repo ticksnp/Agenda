@@ -4,7 +4,7 @@
 
 // Importa os módulos do Firebase CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 
@@ -43,6 +43,7 @@ const professionalsCollection = collection(db, 'professionals');
 const evaluationsCollection = collection(db, 'evaluations');
 const evolutionsCollection = collection(db, 'evolutions');
 const patientsCollection = collection(db, 'patients');
+const userSettingsCollection = collection(db, 'userSettings');
 
 // Opções para preenchimento de selects
 const AGREEMENT_OPTIONS = ['Assoc. HSVP', 'BRF', 'Capasemu', 'Cassi', 'Particular', 'Social', 'Unimed'];
@@ -69,6 +70,7 @@ let calendar;
 let currentPatientList = [];
 let existingProfessionals = [];
 let repeatConfig = null;
+let userReminderTemplate = '📌 Olá *[PACIENTE]*, este é um lembrete do seu agendamento com *[PROFISSIONAL]* no dia *[DATA]* às *[HORA]*.\n\nSe precisar alterar ou cancelar, por favor, nos avise com antecedência.';
 
 // Variáveis de estado para paginação
 let currentPatientsPage = 1, patientsItemsPerPage = 10, allFilteredPatients = [];
@@ -161,7 +163,22 @@ function generateRepeatedAppointments(baseDateStr, config, startHour, endHour) {
     return appointments;
 }
 
-
+/**
+ * Formata a mensagem de lembrete substituindo placeholders.
+ * @param {string} template - O modelo da mensagem com placeholders.
+ * @param {object} appointment - O objeto do agendamento.
+ * @returns {string} A mensagem formatada.
+ */
+function formatReminderMessage(template, appointment) {
+    if (!template) return ''; // Retorna vazio se não houver template
+    const formattedDate = new Date(`${appointment.date}T00:00:00`).toLocaleDateString('pt-BR');
+    
+    return template
+        .replace(/\[PACIENTE\]/g, appointment.patient || 'Cliente')
+        .replace(/\[PROFISSIONAL\]/g, appointment.professional || 'Profissional')
+        .replace(/\[DATA\]/g, formattedDate)
+        .replace(/\[HORA\]/g, appointment.startHour || 'hh:mm');
+}
 
 
 // =====================================================================
@@ -584,6 +601,52 @@ const deletePatientFB = async (id) => {
         throw e;
     }
 };
+
+
+// --- Funções de Modelo de Lembrete ---
+
+async function getUserReminderTemplate() {
+    if (!auth.currentUser) return;
+    const reminderTemplateTextarea = document.getElementById('reminderTemplateTextarea');
+    
+    try {
+        const docRef = doc(userSettingsCollection, auth.currentUser.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists() && docSnap.data().reminderTemplate) {
+            userReminderTemplate = docSnap.data().reminderTemplate;
+        }
+        // Se não existir, a variável global padrão será usada
+        if (reminderTemplateTextarea) {
+            reminderTemplateTextarea.value = userReminderTemplate;
+        }
+    } catch (error) {
+        console.error("Erro ao buscar modelo de lembrete do usuário:", error);
+        // Em caso de erro, garante que o textarea tenha o valor padrão
+        if (reminderTemplateTextarea) {
+            reminderTemplateTextarea.value = userReminderTemplate;
+        }
+    }
+}
+
+async function saveUserReminderTemplate() {
+    if (!auth.currentUser) {
+        Swal.fire('Acesso Negado', 'Você precisa estar logado para salvar.', 'error');
+        return;
+    }
+    const reminderTemplateTextarea = document.getElementById('reminderTemplateTextarea');
+    const newTemplate = reminderTemplateTextarea.value;
+
+    try {
+        const docRef = doc(userSettingsCollection, auth.currentUser.uid);
+        await setDoc(docRef, { reminderTemplate: newTemplate }, { merge: true });
+        userReminderTemplate = newTemplate; // Atualiza a variável global
+        Swal.fire('Sucesso!', 'Seu modelo de mensagem foi salvo.', 'success');
+    } catch (error) {
+        console.error("Erro ao salvar modelo de lembrete:", error);
+        Swal.fire('Erro!', 'Não foi possível salvar seu modelo. Tente novamente.', 'error');
+    }
+}
+
 
 // --- Funções de Geração de PDF ---
 
@@ -2301,6 +2364,7 @@ let patientDetailsForm, newPatientBtn;
 let agreementSelect;
 let blockHourBtn;
 let patientSearchInput;
+let saveReminderTemplateBtn, reminderTemplateTextarea;
 
 // Referências para os modais de repetição
 let repeatRenewalModalElement, repeatRenewalModalInstance;
@@ -2451,6 +2515,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     reminderFilterPatientName = document.getElementById('reminderFilterPatientName');
     reminderFilterStartDate = document.getElementById('reminderFilterStartDate');
     reminderFilterEndDate = document.getElementById('reminderFilterEndDate');
+    saveReminderTemplateBtn = document.getElementById('saveReminderTemplateBtn');
+    reminderTemplateTextarea = document.getElementById('reminderTemplateTextarea');
 
     patientInput = document.getElementById('patient');
     patientSuggestions = document.getElementById('patientSuggestions');
@@ -2569,6 +2635,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             await Promise.all([
                 loadAndDisplayProfessionals(),
                 loadPatientSuggestions(),
+                getUserReminderTemplate(), // Busca o modelo de lembrete do usuário
             ]);
             
             // Define valores padrão para filtros de data se necessário
@@ -2864,18 +2931,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const existingAppointment = await getAppointmentByIdFB(eventId);
 
                 if (existingAppointment) {
-                    const updatedAppointment = {
-                        ...existingAppointment,
+                    const updatedAppointmentData = {
                         date: info.event.start.toISOString().substring(0, 10),
                         startHour: info.event.start.toISOString().substring(11, 16),
                         endHour: info.event.end ? info.event.end.toISOString().substring(11, 16) : null,
                     };
+
+                    const finalAppointmentData = { ...existingAppointment, ...updatedAppointmentData };
                     
-                    info.event.setProp('title', `${updatedAppointment.patient} - ${updatedAppointment.professional}`);
-                    info.event.setProp('color', STATUS_COLORS[updatedAppointment.status] || '#6c757d');
-                    await updateAppointmentFB(eventId, updatedAppointment);
-                    // Reagenda o lembrete enviando o agendamento atualizado em um lote de 1.
-                    await scheduleBatchWhatsappReminders([{...updatedAppointment, id: eventId}]); 
+                    info.event.setProp('title', `${finalAppointmentData.patient} - ${finalAppointmentData.professional}`);
+                    info.event.setProp('color', STATUS_COLORS[finalAppointmentData.status] || '#6c757d');
+                    await updateAppointmentFB(eventId, updatedAppointmentData);
+
+                    const message = formatReminderMessage(userReminderTemplate, finalAppointmentData);
+                    await scheduleBatchWhatsappReminders([{...finalAppointmentData, id: eventId, message: message}]); 
                     Swal.fire('Sucesso!', 'Agendamento atualizado!', 'success');
                 } else {
                     Swal.fire('Erro!', 'Agendamento não encontrado para atualização.', 'error');
@@ -2892,13 +2961,14 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const existingAppointment = await getAppointmentByIdFB(eventId);
 
                 if (existingAppointment) {
-                    const updatedAppointment = {
-                        ...existingAppointment,
+                    const updatedAppointmentData = {
                         endHour: info.event.end ? info.event.end.toISOString().substring(11, 16) : null
                     };
-                    await updateAppointmentFB(eventId, updatedAppointment);
-                     // Reagenda o lembrete enviando o agendamento atualizado em um lote de 1.
-                    await scheduleBatchWhatsappReminders([{...updatedAppointment, id: eventId}]);
+                    await updateAppointmentFB(eventId, updatedAppointmentData);
+                    
+                    const finalAppointmentData = { ...existingAppointment, ...updatedAppointmentData };
+                    const message = formatReminderMessage(userReminderTemplate, finalAppointmentData);
+                    await scheduleBatchWhatsappReminders([{...finalAppointmentData, id: eventId, message: message}]);
                     Swal.fire('Sucesso!', 'Agendamento atualizado!', 'success');
                 } else {
                     Swal.fire('Erro!', 'Agendamento não encontrado para atualização.', 'error');
@@ -3026,7 +3096,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     });
 
-    // **[CORREÇÃO PRINCIPAL]** Lógica de submit do formulário de agendamento otimizada para repetições
     appointmentForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         if (!auth.currentUser) {
@@ -3037,13 +3106,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         const appointmentId = document.getElementById('appointmentId').value;
         const isRepeating = document.getElementById('repeatAppointment').checked;
 
-        // Se for repetição, mas a configuração ainda não foi feita, abre o modal de configuração
         if (isRepeating && !appointmentId && !repeatConfig) {
             openRepeatSetupModal();
             return;
         }
 
-        // Coleta todos os dados do formulário
         const appointmentDate = document.getElementById('appointmentDate').value;
         const appointmentStartHour = document.getElementById('appointmentStartHour').value;
         const appointmentEndHour = document.getElementById('appointmentEndHour').value;
@@ -3061,7 +3128,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         const realizeFitment = document.getElementById('realizeFitment').checked;
         const launchFinancial = document.getElementById('launchFinancial').checked;
 
-        // Validações básicas
         if (!patientName || !professional || !appointmentStartHour || !appointmentEndHour) {
             Swal.fire('Atenção!', 'Paciente, profissional e horários são obrigatórios.', 'warning');
             return;
@@ -3071,7 +3137,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // Lida com a criação/busca de paciente
         let patientId = document.getElementById('patientIdForAppointment').value;
         try {
             if (!patientId) {
@@ -3089,7 +3154,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
-        // Cria o objeto base do agendamento
         const baseAppointmentData = {
             date: appointmentDate, startHour: appointmentStartHour, endHour: appointmentEndHour,
             professional, patient: patientName, patientId, agreement, authCode, procedure,
@@ -3098,30 +3162,28 @@ document.addEventListener('DOMContentLoaded', async () => {
         };
 
         try {
-            if (appointmentId) { // EDIÇÃO DE UM AGENDAMENTO EXISTENTE
+            if (appointmentId) {
                 await updateAppointmentFB(appointmentId, baseAppointmentData);
-                // Envia os dados para o servidor de lembretes em um lote de 1 para atualizar ou agendar
-                await scheduleBatchWhatsappReminders([{ ...baseAppointmentData, id: appointmentId }]);
+                const message = formatReminderMessage(userReminderTemplate, baseAppointmentData);
+                await scheduleBatchWhatsappReminders([{ ...baseAppointmentData, id: appointmentId, message: message }]);
                 Swal.fire('Sucesso!', 'Agendamento atualizado!', 'success');
-            } else { // CRIAÇÃO DE NOVO(S) AGENDAMENTO(S)
-                // Salva o agendamento principal
+            } else {
+                const message = formatReminderMessage(userReminderTemplate, baseAppointmentData);
                 const mainAppointmentId = await addAppointmentFB(baseAppointmentData);
-                // Prepara o objeto para envio de lembrete
-                const mainAppointmentForReminder = { ...baseAppointmentData, id: mainAppointmentId };
+                const mainAppointmentForReminder = { ...baseAppointmentData, id: mainAppointmentId, message: message };
                 
                 let remindersBatch = [mainAppointmentForReminder];
 
                 if (isRepeating && repeatConfig) {
-                    // Gera as datas das repetições
                     const generatedAppointments = generateRepeatedAppointments(
                         baseAppointmentData.date, repeatConfig, baseAppointmentData.startHour, baseAppointmentData.endHour
                     );
                     
-                    // Salva cada repetição no Firestore e coleta os dados para o batch de lembretes
                     for (const apt of generatedAppointments) {
                         const repeatedAptData = { ...baseAppointmentData, date: apt.date };
                         const repeatedId = await addAppointmentFB(repeatedAptData);
-                        remindersBatch.push({ ...repeatedAptData, id: repeatedId });
+                        const repeatedMessage = formatReminderMessage(userReminderTemplate, repeatedAptData);
+                        remindersBatch.push({ ...repeatedAptData, id: repeatedId, message: repeatedMessage });
                     }
                     
                     Swal.fire('Sucesso!', `Agendamento principal e ${generatedAppointments.length} repetições adicionados!`, 'success');
@@ -3129,11 +3191,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     Swal.fire('Sucesso!', 'Agendamento adicionado!', 'success');
                 }
 
-                // **[OTIMIZAÇÃO]** Envia todos os lembretes (o principal + repetições) de uma só vez
                 await scheduleBatchWhatsappReminders(remindersBatch);
             }
             
-            calendar.refetchEvents(); // Atualiza o calendário
+            calendar.refetchEvents();
         } catch (error) {
             console.error("Erro ao salvar agendamento(s):", error);
             Swal.fire('Erro!', `Não foi possível salvar o agendamento. Detalhes: ${error.message}`, 'error');
@@ -3141,7 +3202,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         appointmentModalInstance.hide();
-        // Atualiza as tabelas de pacientes e atendimentos
         const updatedAppointments = await getAppointmentsFB();
         const updatedPatients = await getPatientsFB();
         await populatePatientsTable(updatedPatients);
@@ -3818,7 +3878,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             Swal.fire('Acesso Negado', 'Você precisa estar logado para ver pacientes arquivados.', 'warning');
             return;
         }
-        Swal.fire('Funcionalidade', 'Filtrar pacientes arquivados/desativados (a ser implementado).', 'info');
+        Swal.fire('Funcionalidade', 'Filtrar pacientes arquivados/desativados  (a ser implementado).', 'info');
     });
 
     document.getElementById('exportExcelBtn').addEventListener('click', () => {
@@ -3826,7 +3886,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             Swal.fire('Acesso Negado', 'Você precisa estar logado para exportar dados.', 'warning');
             return;
         }
-        Swal.fire('Funcionalidade', 'Exportar pacientes para Excel (a ser implementada).', 'info');
+        Swal.fire('Funcionalidade', 'Exportar pacientes para Excel (a ser implementado).', 'info');
     });
 
     document.getElementById('importCsvBtn').addEventListener('click', () => {
@@ -3834,7 +3894,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             Swal.fire('Acesso Negado', 'Você precisa estar logado para importar dados.', 'warning');
             return;
         }
-        Swal.fire('Funcionalidade', 'Importar pacientes de CSV (a ser implementada).', 'info');
+        Swal.fire('Funcionalidade', 'Importar pacientes de CSV (a ser implementado).', 'info');
     });
 
     appointmentSearchInput.addEventListener('input', async () => {
@@ -3889,6 +3949,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('remindersFilterForm').reset();
         refreshAndPopulateReminders();
     });
+
+    // **NOVO** Listener para o botão de salvar o modelo de mensagem
+    if (saveReminderTemplateBtn) {
+        saveReminderTemplateBtn.addEventListener('click', saveUserReminderTemplate);
+    }
 
 
     appointmentFilterStatus.addEventListener('change', async () => {
@@ -4055,8 +4120,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                             id: null
                         };
                         delete newAppointmentData.id;
+                        const message = formatReminderMessage(userReminderTemplate, newAppointmentData);
                         const newId = await addAppointmentFB(newAppointmentData);
-                        remindersBatch.push({ ...newAppointmentData, id: newId });
+                        remindersBatch.push({ ...newAppointmentData, id: newId, message: message });
                     }
                     
                     // Envia lembretes em lote
@@ -4145,8 +4211,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                         createdAt: new Date()
                     };
                     delete newAppointmentData.id;
+                    const message = formatReminderMessage(userReminderTemplate, newAppointmentData);
                     const newId = await addAppointmentFB(newAppointmentData);
-                    remindersBatch.push({ ...newAppointmentData, id: newId });
+                    remindersBatch.push({ ...newAppointmentData, id: newId, message: message });
                 }
 
                 // Envia os novos lembretes em lote
@@ -4163,4 +4230,4 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-});
+});		

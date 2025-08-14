@@ -229,11 +229,10 @@ app.post('/batch-schedule-reminders', (req, res) => {
         
         let remindersWereModified = false;
         for (const apt of appointments) {
-            if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour) continue;
+            // **ALTERAÇÃO AQUI**: Agora verifica a propriedade `message` vinda do cliente
+            if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message) continue;
             
-            const { id, cellphone, patient, professional, date, startHour, whatsappReminder } = apt;
-            const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString('pt-BR');
-            const message = `📌 Olá *${patient}*, este é um lembrete do seu agendamento com a *${professional}* no dia *${formattedDate}* às *${startHour}*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433`;
+            const { id, cellphone, whatsappReminder, date, startHour, message } = apt;
             const number = `55${String(cellphone).replace(/\D/g, '')}`;
 
             let sendAt;

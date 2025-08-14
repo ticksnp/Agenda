@@ -466,58 +466,103 @@
                             <i class="fas fa-sync-alt me-2"></i>Atualizar Lista
                         </button>
                     </div>
-                    <div class="card shadow-sm mb-4">
-                        <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtrar Lembretes</h5>
+
+                    <ul class="nav nav-tabs mb-3" id="remindersTab" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="list-reminders-tab" data-bs-toggle="tab" data-bs-target="#list-reminders-pane" type="button" role="tab" aria-controls="list-reminders-pane" aria-selected="true">
+                                <i class="fas fa-list-ul me-2"></i>Lista de Lembretes
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="config-reminders-tab" data-bs-toggle="tab" data-bs-target="#config-reminders-pane" type="button" role="tab" aria-controls="config-reminders-pane" aria-selected="false">
+                                <i class="fas fa-cog me-2"></i>Configurações de Mensagem
+                            </button>
+                        </li>
+                    </ul>
+
+                    <div class="tab-content" id="remindersTabContent">
+                        <div class="tab-pane fade show active" id="list-reminders-pane" role="tabpanel" aria-labelledby="list-reminders-tab" tabindex="0">
+                            <div class="card shadow-sm mb-4">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-filter me-2"></i>Filtrar Lembretes</h5>
+                                </div>
+                                <div class="card-body">
+                                    <form id="remindersFilterForm" class="row g-3 align-items-end">
+                                        <div class="col-md-3">
+                                            <label for="reminderFilterStatus" class="form-label">Status</label>
+                                            <select id="reminderFilterStatus" class="form-select">
+                                                <option value="Todos" selected>Todos</option>
+                                                <option value="agendado">Agendado</option>
+                                                <option value="enviado">Enviado</option>
+                                                <option value="cancelado">Cancelado</option>
+                                                <option value="falhou">Falhou</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <label for="reminderFilterPatientName" class="form-label">Nome do Paciente</label>
+                                            <input type="text" id="reminderFilterPatientName" class="form-control" placeholder="Digite o nome para buscar...">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label for="reminderFilterStartDate" class="form-label">Data de (Envio)</label>
+                                            <input type="date" id="reminderFilterStartDate" class="form-control">
+                                        </div>
+                                        <div class="col-md-2">
+                                            <label for="reminderFilterEndDate" class="form-label">Data até (Envio)</label>
+                                            <input type="date" id="reminderFilterEndDate" class="form-control">
+                                        </div>
+                                        <div class="col-md-1">
+                                            <button type="button" id="clearReminderFiltersBtn" class="btn btn-secondary w-100" title="Limpar filtros">
+                                                <i class="fas fa-eraser"></i>
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                            <div class="card shadow-sm">
+                                <div class="card-body">
+                                    <div class="table-responsive">
+                                        <table class="table table-hover">
+                                            <thead>
+                                                <tr>
+                                                    <th>Status</th>
+                                                    <th>Paciente</th>
+                                                    <th>Data Agendada (Envio)</th>
+                                                    <th>Mensagem</th>
+                                                    <th>Ações</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="remindersListTableBody">
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                        <div class="card-body">
-                            <form id="remindersFilterForm" class="row g-3 align-items-end">
-                                <div class="col-md-3">
-                                    <label for="reminderFilterStatus" class="form-label">Status</label>
-                                    <select id="reminderFilterStatus" class="form-select">
-                                        <option value="Todos" selected>Todos</option>
-                                        <option value="agendado">Agendado</option>
-                                        <option value="enviado">Enviado</option>
-                                        <option value="cancelado">Cancelado</option>
-                                        <option value="falhou">Falhou</option>
-                                    </select>
+
+                        <div class="tab-pane fade" id="config-reminders-pane" role="tabpanel" aria-labelledby="config-reminders-tab" tabindex="0">
+                            <div class="card shadow-sm">
+                                <div class="card-header">
+                                    <h5 class="mb-0">Mensagem Padrão de Lembrete</h5>
                                 </div>
-                                <div class="col-md-4">
-                                    <label for="reminderFilterPatientName" class="form-label">Nome do Paciente</label>
-                                    <input type="text" id="reminderFilterPatientName" class="form-control" placeholder="Digite o nome para buscar...">
-                                </div>
-                                <div class="col-md-2">
-                                    <label for="reminderFilterStartDate" class="form-label">Data de (Envio)</label>
-                                    <input type="date" id="reminderFilterStartDate" class="form-control">
-                                </div>
-                                <div class="col-md-2">
-                                    <label for="reminderFilterEndDate" class="form-label">Data até (Envio)</label>
-                                    <input type="date" id="reminderFilterEndDate" class="form-control">
-                                </div>
-                                <div class="col-md-1">
-                                    <button type="button" id="clearReminderFiltersBtn" class="btn btn-secondary w-100" title="Limpar filtros">
-                                        <i class="fas fa-eraser"></i>
+                                <div class="card-body">
+                                    <p class="text-muted">Defina o texto padrão que será enviado aos seus pacientes. Esta mensagem é exclusiva para o seu usuário.</p>
+                                    <div class="alert alert-info">
+                                        <h6 class="alert-heading">Use as seguintes variáveis:</h6>
+                                        <ul class="mb-0">
+                                            <li><code>[PACIENTE]</code> - Será substituído pelo nome do paciente.</li>
+                                            <li><code>[PROFISSIONAL]</code> - Será substituído pelo nome do profissional.</li>
+                                            <li><code>[DATA]</code> - Será substituído pela data do agendamento (dd/mm/aaaa).</li>
+                                            <li><code>[HORA]</code> - Será substituído pela hora do agendamento (HH:mm).</li>
+                                        </ul>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label for="reminderTemplateTextarea" class="form-label">Seu texto de lembrete:</label>
+                                        <textarea class="form-control" id="reminderTemplateTextarea" rows="6"></textarea>
+                                    </div>
+                                    <button class="btn btn-primary" id="saveReminderTemplateBtn">
+                                        <i class="fas fa-save me-2"></i>Salvar Modelo de Mensagem
                                     </button>
                                 </div>
-                            </form>
-                        </div>
-                    </div>
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
-                                        <tr>
-                                            <th>Status</th>
-                                            <th>Paciente</th>
-                                            <th>Data Agendada (Envio)</th>
-                                            <th>Mensagem</th>
-                                            <th>Ações</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="remindersListTableBody">
-                                    </tbody>
-                                </table>
                             </div>
                         </div>
                     </div>
