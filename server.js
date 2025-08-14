@@ -222,18 +222,28 @@ app.post('/cancel-reminder', (req, res) => {
     }
 });
 
+// =====================================================================
+// == A CORREÇÃO ESTÁ AQUI ==
+// =====================================================================
 app.post('/batch-schedule-reminders', (req, res) => {
     try {
         const appointments = req.body;
-        if (!Array.isArray(appointments)) return res.status(400).json({ message: 'Payload deve ser um array.' });
+        if (!Array.isArray(appointments)) {
+            return res.status(400).json({ message: 'Payload deve ser um array.' });
+        }
         
         let remindersWereModified = false;
         for (const apt of appointments) {
-            // **ALTERAÇÃO AQUI**: Agora verifica a propriedade `message` vinda do cliente
-            if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message) continue;
+            // Valida se o agendamento tem todos os campos necessários, incluindo a 'message'
+            if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message) {
+                continue; // Pula este agendamento se estiver incompleto
+            }
             
             const { id, cellphone, whatsappReminder, date, startHour, message } = apt;
             const number = `55${String(cellphone).replace(/\D/g, '')}`;
+
+            // A lógica de criar a mensagem foi REMOVIDA daqui.
+            // Agora, simplesmente usamos a 'message' que já veio do cliente (app.js).
 
             let sendAt;
             if (whatsappReminder === 'Enviar agora') {
@@ -249,13 +259,18 @@ app.post('/batch-schedule-reminders', (req, res) => {
             const newReminder = { id, number, message, sendAt, status: 'agendado' };
             const existingIndex = allReminders.findIndex(r => r && r.id === id);
 
-            if (existingIndex > -1) allReminders[existingIndex] = newReminder;
-            else allReminders.push(newReminder);
+            if (existingIndex > -1) {
+                allReminders[existingIndex] = newReminder;
+            } else {
+                allReminders.push(newReminder);
+            }
             
             remindersWereModified = true;
         }
         
-        if (remindersWereModified) writeRemindersToDB(allReminders);
+        if (remindersWereModified) {
+            writeRemindersToDB(allReminders);
+        }
         
         res.status(200).json({ message: 'Lote de lembretes processado.' });
     } catch (error) {

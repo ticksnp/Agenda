@@ -54,5 +54,19 @@
     "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *09:00*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
     "sendAt": "2025-08-14T07:42:19.201Z",
     "status": "enviado"
+  },
+  {
+    "id": "AUuVexopDkIbhVYgJ02w",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *10:00*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T07:50:51.723Z",
+    "status": "enviado"
+  },
+  {
+    "id": "x5Vi2RAlrzADqrmFGgM5",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *11:00*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
+    "sendAt": "2025-08-14T07:52:31.431Z",
+    "status": "enviado"
   }
 ]
