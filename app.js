@@ -4014,15 +4014,38 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-            navigator.serviceWorker.register('/service-worker.js')
-                .then(registration => {
-                    console.log('Service Worker registrado com sucesso:', registration.scope);
-                })
-                .catch(error => {
-                    console.error('Falha no registro do Service Worker:', error);
+        navigator.serviceWorker.register('/service-worker.js')
+            .then(registration => {
+                console.log('Service Worker registrado com sucesso:', registration.scope);
+
+                // Esta lógica verifica se há uma nova versão do SW esperando para ser ativada.
+                registration.addEventListener('updatefound', () => {
+                    const newWorker = registration.installing;
+                    console.log('Nova versão do Service Worker encontrada, instalando...');
+
+                    newWorker.addEventListener('statechange', () => {
+                        // Se o novo SW foi instalado com sucesso, significa que o cache foi atualizado
+                        // e uma nova versão do site está pronta.
+                        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                             Swal.fire({
+                                title: 'Atualização Disponível!',
+                                text: 'Uma nova versão do aplicativo está pronta. Recarregue para usar as novidades.',
+                                icon: 'info',
+                                confirmButtonText: 'Recarregar Agora',
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    window.location.reload();
+                                }
+                            });
+                        }
+                    });
                 });
-        });
+            })
+            .catch(error => {
+                console.error('Falha no registro do Service Worker:', error);
+            });
     }
 
     if (sidebarAgendaBtn) sidebarAgendaBtn.addEventListener('click', showAgendaSection);

@@ -75,5 +75,26 @@
     "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* no dia *14/08/2025* às *07:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência* para evitar cobrança.\n\nChave PIX Celular (caso necessário):\n54991798433",
     "sendAt": "2025-08-14T08:02:09.302Z",
     "status": "enviado"
+  },
+  {
+    "id": "UCbAoIdjWzDyauUhOhPJ",
+    "number": "555499884608",
+    "message": "TESTE",
+    "sendAt": "2025-08-14T08:15:30.508Z",
+    "status": "enviado"
+  },
+  {
+    "id": "cxgB0IZzV9ort8zGnQYP",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com *Franciele* no dia *14/08/2025* às *09:30*.\n\nSe precisar alterar ou cancelar, por favor, nos avise com antecedência.",
+    "sendAt": "2025-08-14T08:17:33.997Z",
+    "status": "enviado"
+  },
+  {
+    "id": "7QWxnp8IGzhG0nB76V9V",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* *Neuropsicóloga no dia *14/08/2025* às *10:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência para evitar cobrança*.\n\nChave PIX Celular (caso necessário):\n54991798433\n",
+    "sendAt": "2025-08-14T08:21:17.795Z",
+    "status": "enviado"
   }
 ]

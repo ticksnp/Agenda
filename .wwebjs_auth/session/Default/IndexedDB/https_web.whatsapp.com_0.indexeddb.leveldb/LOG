@@ -1,3 +1,2 @@
-2025/08/14-05:08:47.061 3494 Reusing MANIFEST C:\Users\Patrick\OneDrive\Documentos\Agenda PWA\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
-2025/08/14-05:08:47.062 3494 Recovering log #444
-2025/08/14-05:08:47.174 3494 Reusing old log C:\Users\Patrick\OneDrive\Documentos\Agenda PWA\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/000444.log 
+2025/08/14-05:28:18.799 3b0c Creating DB C:\Users\Patrick\OneDrive\Documentos\Agenda PWA\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb since it was missing.
+2025/08/14-05:28:18.805 3b0c Reusing MANIFEST C:\Users\Patrick\OneDrive\Documentos\Agenda PWA\.wwebjs_auth\session\Default\IndexedDB\https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001

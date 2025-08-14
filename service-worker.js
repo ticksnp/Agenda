@@ -1,6 +1,6 @@
 // service-worker.js (Versão Final Corrigida)
 
-const CACHE_NAME = 'agenda-pwa-v6'; // Aumentamos a versão para garantir a atualização
+const CACHE_NAME = 'agenda-pwa-v7'; // Aumentamos a versão para garantir a atualização
 
 // ***** CORREÇÃO APLICADA AQUI *****
 // Removemos todos os links de CDN. O Service Worker vai cachear apenas os arquivos locais do seu projeto.
