@@ -283,7 +283,6 @@ app.post('/batch-schedule-reminders', (req, res) => {
 // INICIALIZAÇÃO DO SERVIDOR
 // =====================================================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor de lembretes rodando na porta ${PORT}`);
-    // A inicialização do cliente agora acontece após a conexão com o BD ser estabelecida.
+httpServer.listen(PORT, () => { // <--- MUDANÇA CRUCIAL AQUI
+    console.log(`Servidor de lembretes e sockets rodando na porta ${PORT}`);
 });

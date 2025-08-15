@@ -2551,18 +2551,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         detailedEvolutionModalInstance = new bootstrap.Modal(detailedEvolutionModalElement);
     }
     
-    const whatsappModalElement = document.getElementById('whatsappModal');
+        const whatsappModalElement = document.getElementById('whatsappModal');
     if (whatsappModalElement) {
+        // A lógica de abrir o modal agora é limpa.
+        // Não há mais necessidade de iniciar ou parar um intervalo.
+        // A conexão do socket já está ativa em segundo plano.
         whatsappModalElement.addEventListener('show.bs.modal', () => {
-            checkWhatsappStatus(); 
-            whatsappStatusInterval = setInterval(checkWhatsappStatus, 3000);
-        });
-
-        whatsappModalElement.addEventListener('hide.bs.modal', () => {
-            if (whatsappStatusInterval) {
-                clearInterval(whatsappStatusInterval);
-                whatsappStatusInterval = null;
-            }
+            // Apenas força uma verificação via fetch ao abrir o modal, por segurança.
+            checkWhatsappStatus();
         });
 
         const checkWhatsappStatusBtn = document.getElementById('checkWhatsappStatusBtn');
@@ -2575,10 +2571,6 @@ document.addEventListener('DOMContentLoaded', async () => {
              try {
                 await reconnectWhatsapp();
                 Swal.update({text: 'Solicitação enviada. Verifique o status novamente em alguns segundos.'});
-                setTimeout(() => {
-                    checkWhatsappStatus();
-                    Swal.close();
-                }, 3000);
              } catch(e) {
                 Swal.fire('Erro', `Não foi possível solicitar a reconexão: ${e.message}`, 'error');
              }
