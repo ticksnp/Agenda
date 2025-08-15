@@ -14,7 +14,11 @@ process.on('uncaughtException', (err) => {
 });
 
 const app = express();
-app.use(cors());
+
+app.use(cors({
+  origin: 'https://fsagenda.netlify.app'
+  }));
+
 app.use(express.json());
 
 const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
