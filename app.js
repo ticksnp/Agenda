@@ -6,7 +6,6 @@ import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, dele
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 
-// MUDANÇA: A importação agora inclui a nova função de inicialização do socket
 import { initializeSocketConnection, checkWhatsappStatus, cancelWhatsappReminder, reconnectWhatsapp, getWhatsappReminders, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
 
 // Suas credenciais do Firebase
@@ -2536,7 +2535,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     blockHourBtn = document.getElementById('blockHourBtn');
 
     initializeSocketConnection();
-    
+
     if (evaluationModalElement) {
         evaluationModalInstance = new bootstrap.Modal(evaluationModalElement);
         evaluationForm = document.getElementById('evaluationForm');
@@ -2570,6 +2569,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (checkWhatsappStatusBtn) {
             checkWhatsappStatusBtn.addEventListener('click', checkWhatsappStatus);
         }
+        
         document.getElementById('reconnectWhatsappBtn')?.addEventListener('click', async () => {
              Swal.fire({ title: 'Aguarde...', text: 'Enviando solicitação de reconexão.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
              try {
