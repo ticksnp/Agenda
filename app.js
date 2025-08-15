@@ -1,12 +1,15 @@
 // =====================================================================
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
+
+// Importa os módulos do Firebase CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 
-import { initializeSocketConnection, checkWhatsappStatus, cancelWhatsappReminder, reconnectWhatsapp, getWhatsappReminders, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
+// Importa as funções de cliente do WhatsApp do arquivo separado
+import { handleWhatsappLogic, checkWhatsappStatus, cancelWhatsappReminder, reconnectWhatsapp, getWhatsappReminders, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
 
 // Suas credenciais do Firebase
 const firebaseConfig = {
@@ -2534,8 +2537,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     agreementSelect = document.getElementById('agreement');
     blockHourBtn = document.getElementById('blockHourBtn');
 
-    initializeSocketConnection();
-
     if (evaluationModalElement) {
         evaluationModalInstance = new bootstrap.Modal(evaluationModalElement);
         evaluationForm = document.getElementById('evaluationForm');
@@ -2551,26 +2552,33 @@ document.addEventListener('DOMContentLoaded', async () => {
         detailedEvolutionModalInstance = new bootstrap.Modal(detailedEvolutionModalElement);
     }
     
-        const whatsappModalElement = document.getElementById('whatsappModal');
+    const whatsappModalElement = document.getElementById('whatsappModal');
     if (whatsappModalElement) {
-        // A lógica de abrir o modal agora é limpa.
-        // Não há mais necessidade de iniciar ou parar um intervalo.
-        // A conexão do socket já está ativa em segundo plano.
         whatsappModalElement.addEventListener('show.bs.modal', () => {
-            // Apenas força uma verificação via fetch ao abrir o modal, por segurança.
-            checkWhatsappStatus();
+            checkWhatsappStatus(); 
+            whatsappStatusInterval = setInterval(checkWhatsappStatus, 3000);
+        });
+
+        whatsappModalElement.addEventListener('hide.bs.modal', () => {
+            if (whatsappStatusInterval) {
+                clearInterval(whatsappStatusInterval);
+                whatsappStatusInterval = null;
+            }
         });
 
         const checkWhatsappStatusBtn = document.getElementById('checkWhatsappStatusBtn');
         if (checkWhatsappStatusBtn) {
             checkWhatsappStatusBtn.addEventListener('click', checkWhatsappStatus);
         }
-        
         document.getElementById('reconnectWhatsappBtn')?.addEventListener('click', async () => {
              Swal.fire({ title: 'Aguarde...', text: 'Enviando solicitação de reconexão.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
              try {
                 await reconnectWhatsapp();
                 Swal.update({text: 'Solicitação enviada. Verifique o status novamente em alguns segundos.'});
+                setTimeout(() => {
+                    checkWhatsappStatus();
+                    Swal.close();
+                }, 3000);
              } catch(e) {
                 Swal.fire('Erro', `Não foi possível solicitar a reconexão: ${e.message}`, 'error');
              }
