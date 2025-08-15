@@ -6,6 +6,69 @@ import QRCode from 'https://esm.sh/qrcode';
 // =================================================================================
 const WHATSAPP_SERVER_URL = 'https://agenda-43p2.onrender.com';
 
+function updateWhatsappUI(data) {
+    const statusEl = document.getElementById('whatsapp-status');
+    const qrCodeContainer = document.getElementById('whatsapp-qr-code');
+    
+    if (!statusEl || !qrCodeContainer) return;
+
+    statusEl.textContent = data.status || 'Desconhecido';
+
+    switch (data.status) {
+        case 'Conectado':
+            statusEl.className = 'badge bg-success';
+            qrCodeContainer.innerHTML = '<div class="text-center p-3"><i class="fas fa-check-circle fa-3x text-success"></i><p class="mt-2">Dispositivo conectado!</p></div>';
+            break;
+        case 'Aguardando QR Code':
+            statusEl.className = 'badge bg-warning text-dark';
+            // Garante que o QR code só seja renderizado se for diferente do anterior
+            if (data.qr && qrCodeContainer.dataset.qr !== data.qr) {
+                qrCodeContainer.innerHTML = ''; // Limpa o conteúdo
+                const canvas = document.createElement('canvas');
+                qrCodeContainer.appendChild(canvas);
+                QRCode.toCanvas(canvas, data.qr, { width: 256 }, (error) => {
+                    if (error) {
+                         console.error(error);
+                         qrCodeContainer.innerHTML = '<p class="text-danger">Erro ao renderizar QR Code.</p>';
+                    }
+                });
+                qrCodeContainer.dataset.qr = data.qr;
+            }
+            break;
+        default:
+            statusEl.className = 'badge bg-danger';
+            qrCodeContainer.innerHTML = `<p class="text-center text-muted p-3">${data.message || 'O cliente não está conectado ou está inicializando.'}</p>`;
+            qrCodeContainer.dataset.qr = ''; // Limpa o QR code antigo
+            break;
+    }
+}
+
+// Função que inicia e gerencia a conexão do socket em tempo real
+export function initializeSocketConnection() {
+    // A variável `io` está disponível globalmente por causa do script que adicionamos no HTML
+    const socket = io(WHATSAPP_SERVER_URL);
+
+    socket.on('connect', () => {
+        console.log('Conectado ao servidor de sockets com sucesso!');
+    });
+
+    // Ouve pelo evento 'status_update' que o servidor envia
+    socket.on('status_update', (newState) => {
+        console.log('Novo status recebido do servidor:', newState.status);
+        updateWhatsappUI(newState);
+    });
+
+    socket.on('connect_error', (error) => {
+        console.error('Erro de conexão com o socket:', error);
+        updateWhatsappUI({ status: 'Offline', message: 'Não foi possível conectar ao servidor de lembretes em tempo real.' });
+    });
+
+    socket.on('disconnect', () => {
+        console.warn('Desconectado do servidor de sockets.');
+        updateWhatsappUI({ status: 'Desconectado', message: 'A conexão em tempo real foi perdida. Tentando reconectar...' });
+    });
+}
+
 // Funções auxiliares não exportadas (usadas apenas dentro deste arquivo)
 async function sendWhatsappReminder(number, message) {
     try {
@@ -72,6 +135,15 @@ export async function handleWhatsappLogic(appointmentData, appointmentId) {
 }
 
 export async function checkWhatsappStatus() {
+    try {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/status`, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(`Servidor respondeu com status ${response.status}`);
+        const data = await response.json();
+        updateWhatsappUI(data);
+    } catch (error) {
+        updateWhatsappUI({ status: 'Offline', message: 'Não foi possível conectar ao servidor de lembretes. Verifique se ele está em execução.' });
+    }
+
     const statusEl = document.getElementById('whatsapp-status');
     const qrCodeContainer = document.getElementById('whatsapp-qr-code');
     

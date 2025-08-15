@@ -6,6 +6,7 @@
     "mongoose": "^8.17.1",
     "pm2": "^6.0.8",
     "qrcode-terminal": "^0.12.0",
+    "socket.io": "^4.8.1",
     "whatsapp-web.js": "^1.31.0",
     "wwebjs-mongo": "^1.1.0"
   }

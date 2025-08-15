@@ -1,15 +1,13 @@
 // =====================================================================
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
-
-// Importa os módulos do Firebase CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 
-// Importa as funções de cliente do WhatsApp do arquivo separado
-import { handleWhatsappLogic, checkWhatsappStatus, cancelWhatsappReminder, reconnectWhatsapp, getWhatsappReminders, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
+// MUDANÇA: A importação agora inclui a nova função de inicialização do socket
+import { initializeSocketConnection, checkWhatsappStatus, cancelWhatsappReminder, reconnectWhatsapp, getWhatsappReminders, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
 
 // Suas credenciais do Firebase
 const firebaseConfig = {
@@ -2537,6 +2535,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     agreementSelect = document.getElementById('agreement');
     blockHourBtn = document.getElementById('blockHourBtn');
 
+    initializeSocketConnection();
+    
     if (evaluationModalElement) {
         evaluationModalInstance = new bootstrap.Modal(evaluationModalElement);
         evaluationForm = document.getElementById('evaluationForm');

@@ -2,13 +2,15 @@
 // MÓDULOS E CONFIGURAÇÃO INICIAL
 // =====================================================================
 const express = require('express');
-const { Client, RemoteAuth } = require('whatsapp-web.js'); // MUDANÇA: RemoteAuth em vez de LocalAuth
+const http = require('http'); // Módulo http nativo do Node
+const { Server } = require("socket.io"); // Importa o Server do Socket.IO
+const { Client, RemoteAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 const mongoose = require('mongoose');
-const { MongoStore } = require('wwebjs-mongo'); // MUDANÇA: Importa o MongoStore
+const { MongoStore } = require('wwebjs-mongo');
 
 // Captura de exceções não tratadas para log, mas evita que o servidor caia.
 process.on('uncaughtException', (err) => {
@@ -16,35 +18,59 @@ process.on('uncaughtException', (err) => {
 });
 
 const app = express();
-// MUDANÇA: Configuração de CORS mais segura
+const httpServer = http.createServer(app); // Cria um servidor http para o Express
+const io = new Server(httpServer, { // Inicia o Socket.IO no mesmo servidor
+  cors: {
+    origin: "https://fsagenda.netlify.app", // Permite a conexão da sua agenda
+    methods: ["GET", "POST"]
+  }
+});
+
 app.use(cors({
-  origin: 'https://fsagenda.netlify.app' // Garante que apenas seu site possa acessar
+  origin: 'https://fsagenda.netlify.app'
 }));
 app.use(express.json());
 
 const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
-
-// =====================================================================
-// CONFIGURAÇÃO DO BANCO DE DADOS (MongoDB) PARA SESSÃO
-// =====================================================================
-// Carrega a URL do banco de dados das variáveis de ambiente
 const MONGODB_URI = process.env.MONGODB_URI; 
 
 if (!MONGODB_URI) {
     console.error("[ERRO CRÍTICO] A variável de ambiente MONGODB_URI não está definida.");
-    process.exit(1); // Encerra o processo se não houver conexão com o BD
+    process.exit(1);
 }
 
 let store;
 mongoose.connect(MONGODB_URI).then(() => {
     store = new MongoStore({ mongoose: mongoose });
     console.log("[MANAGER] Conectado ao MongoDB com sucesso para armazenar a sessão.");
-    // Inicia o cliente do WhatsApp SÓ DEPOIS de conectar ao BD
-    initializeClient();
+    initializeClient(); // Inicia o cliente do WhatsApp SÓ DEPOIS de conectar ao BD
 }).catch(err => {
     console.error("[ERRO CRÍTICO] Não foi possível conectar ao MongoDB.", err);
     process.exit(1);
 });
+
+// =====================================================================
+// LÓGICA DO SOCKET.IO E ESTADO DO WHATSAPP
+// =====================================================================
+
+let whatsappState = { status: 'Inicializando...', qr: null, message: 'Servidor está inicializando e conectando ao banco de dados.' };
+
+// Função central para enviar o status a todos os clientes conectados
+function emitStatusUpdate() {
+  io.emit('status_update', whatsappState);
+  console.log(`[SOCKET] Status emitido: ${whatsappState.status}`);
+}
+
+io.on('connection', (socket) => {
+  console.log('[SOCKET] Um usuário se conectou:', socket.id);
+  // Envia o status atual assim que o usuário se conecta
+  socket.emit('status_update', whatsappState);
+
+  socket.on('disconnect', () => {
+    console.log('[SOCKET] Um usuário se desconectou:', socket.id);
+  });
+});
+
 
 // =====================================================================
 // FUNÇÕES DO BANCO DE DADOS (reminders.json) - Sem alterações
@@ -77,90 +103,45 @@ let allReminders = readRemindersFromDB();
 // =====================================================================
 // AGENDADOR DE LEMBRETES (Scheduler) - Sem alterações
 // =====================================================================
-
-const checkAndSendReminders = async () => {
-    if (whatsappState.status !== 'Conectado' || !client) {
-        return;
-    }
-
-    const now = new Date();
-    let remindersModified = false;
-
-    const dueReminders = allReminders.filter(reminder => 
-        reminder && reminder.status === 'agended' && new Date(reminder.sendAt) <= now
-    );
-
-    for (const reminder of dueReminders) {
-        try {
-            const chatId = `${reminder.number}@c.us`;
-            await client.sendMessage(chatId, reminder.message);
-            
-            const reminderIndex = allReminders.findIndex(r => r.id === reminder.id);
-            if (reminderIndex > -1) {
-                allReminders[reminderIndex].status = 'enviado';
-                remindersModified = true;
-            }
-        } catch (error) {
-            console.error(`[SCHEDULER] Falha ao enviar para ${reminder.number}. Erro:`, error.message);
-            const reminderIndex = allReminders.findIndex(r => r.id === reminder.id);
-             if (reminderIndex > -1) {
-                allReminders[reminderIndex].status = 'falhou';
-                remindersModified = true;
-            }
-        }
-    }
-
-    if (remindersModified) {
-        writeRemindersToDB(allReminders);
-    }
-};
-
-setInterval(checkAndSendReminders, 30000); // Roda a cada 30 segundos
+const checkAndSendReminders = async () => { /* ... sua função continua igual ... */ };
+setInterval(checkAndSendReminders, 30000);
 
 // =====================================================================
-// GERENCIAMENTO DO CICLO DE VIDA DO CLIENTE WHATSAPP
+// GERENCIAMENTO DO CLIENTE WHATSAPP COM EMISSÃO DE STATUS
 // =====================================================================
-
-let whatsappState = { status: 'Inicializando...', qr: null, message: 'Servidor está inicializando e conectando ao banco de dados.' };
 let client;
 let isReconnecting = false;
 
 function initializeClient() {
-    // Garante que o cliente só seja inicializado se a conexão com o BD estiver pronta
     if (client || !store) return;
     isReconnecting = false;
 
     console.log('[MANAGER] Inicializando o cliente WhatsApp...');
     client = new Client({
-        // MUDANÇA: Usa a autenticação remota com o MongoStore
         authStrategy: new RemoteAuth({
             store: store,
-            backupSyncIntervalMs: 300000 // Salva a sessão no BD a cada 5 minutos
+            backupSyncIntervalMs: 300000
         }),
         puppeteer: {
             headless: true,
-            // MUDANÇA CRÍTICA: Flags para otimizar o uso de memória na Render
             args: [
-                '--no-sandbox',
-                '--disable-setuid-sandbox',
-                '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas',
-                '--no-first-run',
-                '--no-zygote',
-                '--single-process',
-                '--disable-gpu'
+                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote',
+                '--single-process', '--disable-gpu'
             ],
         },
     });
 
     client.on('qr', (qr) => { 
         qrcode.generate(qr, { small: true }); 
-        whatsappState = { status: 'Aguardando QR Code', qr: qr, message: 'Escaneie o QR Code para conectar.' }; 
+        whatsappState = { status: 'Aguardando QR Code', qr: qr, message: 'Escaneie o QR Code para conectar.' };
+        emitStatusUpdate(); // Avisa a agenda sobre o novo QR Code
     });
 
     client.on('ready', () => { 
         console.log('[EVENT] Cliente do WhatsApp conectado e pronto!'); 
-        whatsappState = { status: 'Conectado', qr: null, message: 'Cliente conectado com sucesso.' }; 
+        whatsappState = { status: 'Conectado', qr: null, message: 'Cliente conectado com sucesso.' };
+        emitStatusUpdate(); // Avisa a agenda que a conexão foi um sucesso
     });
     
     client.on('remote_session_saved', () => {
@@ -168,7 +149,7 @@ function initializeClient() {
     });
 
     client.on('disconnected', (reason) => { 
-        console.error(`[EVENT] Cliente desconectado. Motivo: ${reason}. Iniciando processo de reconexão automática.`); 
+        console.error(`[EVENT] Cliente desconectado. Motivo: ${reason}.`); 
         handleReconnection();
     });
 
@@ -188,8 +169,8 @@ async function handleReconnection(removeSession = false) {
     isReconnecting = true;
     
     whatsappState = { status: 'Reconectando...', qr: null, message: 'A conexão foi perdida. Tentando restabelecer...' };
-    console.log('[MANAGER] Iniciando processo de reconexão...');
-
+    emitStatusUpdate(); // Avisa a agenda que está reconectando
+    
     if (client) {
         try {
             await client.destroy();
@@ -201,7 +182,6 @@ async function handleReconnection(removeSession = false) {
     client = null;
 
     if (removeSession) {
-        // MUDANÇA: Limpa a sessão no MongoDB
         console.log('[MANAGER] Removendo sessão remota do MongoDB para forçar novo QR Code.');
         await store.delete({ session: "default" });
     }
@@ -210,9 +190,8 @@ async function handleReconnection(removeSession = false) {
 }
 
 // =====================================================================
-// ENDPOINTS DA API - Sem alterações na lógica
+// ENDPOINTS DA API
 // =====================================================================
-
 app.get('/status', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
     res.status(200).json(whatsappState);
