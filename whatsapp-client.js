@@ -1,6 +1,10 @@
 import QRCode from 'https://esm.sh/qrcode';
 
-const WHATSAPP_SERVER_URL = 'http://localhost:3000';
+// =================================================================================
+// ATENÇÃO: SUBSTITUA ESTA URL PELA URL PÚBLICA DO SEU SERVIDOR QUANDO ESTIVER ONLINE
+// Exemplo: 'https://meu-bot-agenda.onrender.com'
+// =================================================================================
+const WHATSAPP_SERVER_URL = 'https://agenda-43p2.onrender.com';
 
 // Funções auxiliares não exportadas (usadas apenas dentro deste arquivo)
 async function sendWhatsappReminder(number, message) {
@@ -23,7 +27,7 @@ async function scheduleWhatsappReminder(id, number, message, sendAt) {
         await fetch(`${WHATSAPP_SERVER_URL}/schedule-reminder`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, number, message, sendAt, status: 'agendado' }),
+            body: JSON.stringify({ id, number, message, sendAt, status: 'agended' }),
         });
     } catch (error) {
         console.error(`Erro ao agendar lembrete para o ID ${id}:`, error);
@@ -34,10 +38,6 @@ async function scheduleWhatsappReminder(id, number, message, sendAt) {
 // FUNÇÕES EXPORTADAS (Usadas pelo app.js)
 // =====================================================================
 
-/**
- * **[CORREÇÃO APLICADA]**
- * A palavra-chave 'export' foi adicionada para que o app.js possa importar e usar esta função.
- */
 export async function scheduleBatchWhatsappReminders(appointments) {
     if (!appointments || appointments.length === 0) {
         console.log("Nenhum lembrete para enviar em lote.");

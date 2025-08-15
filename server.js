@@ -61,7 +61,7 @@ const checkAndSendReminders = async () => {
     let remindersModified = false;
 
     const dueReminders = allReminders.filter(reminder => 
-        reminder && reminder.status === 'agendado' && new Date(reminder.sendAt) <= now
+        reminder && reminder.status === 'agended' && new Date(reminder.sendAt) <= now
     );
 
     for (const reminder of dueReminders) {
@@ -112,7 +112,7 @@ function initializeClient() {
         authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
         puppeteer: { 
             headless: true, 
-            args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] // Essencial para rodar em servidores Linux
         } 
     });
 
@@ -198,7 +198,6 @@ app.post('/reconnect', async (req, res) => {
     await handleReconnection(true);
 });
 
-// Os endpoints restantes não precisam de alteração
 app.get('/reminders', (req, res) => res.status(200).json(allReminders));
 
 app.post('/cancel-reminder', (req, res) => {
@@ -207,7 +206,7 @@ app.post('/cancel-reminder', (req, res) => {
     
     let reminderFound = false;
     allReminders = allReminders.map(r => {
-        if (r && r.id === id && r.status === 'agendado') {
+        if (r && r.id === id && r.status === 'agended') {
             reminderFound = true;
             return { ...r, status: 'cancelado' };
         }
@@ -222,9 +221,6 @@ app.post('/cancel-reminder', (req, res) => {
     }
 });
 
-// =====================================================================
-// == A CORREÇÃO ESTÁ AQUI ==
-// =====================================================================
 app.post('/batch-schedule-reminders', (req, res) => {
     try {
         const appointments = req.body;
@@ -234,16 +230,12 @@ app.post('/batch-schedule-reminders', (req, res) => {
         
         let remindersWereModified = false;
         for (const apt of appointments) {
-            // Valida se o agendamento tem todos os campos necessários, incluindo a 'message'
             if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message) {
-                continue; // Pula este agendamento se estiver incompleto
+                continue; 
             }
             
             const { id, cellphone, whatsappReminder, date, startHour, message } = apt;
             const number = `55${String(cellphone).replace(/\D/g, '')}`;
-
-            // A lógica de criar a mensagem foi REMOVIDA daqui.
-            // Agora, simplesmente usamos a 'message' que já veio do cliente (app.js).
 
             let sendAt;
             if (whatsappReminder === 'Enviar agora') {
@@ -256,7 +248,7 @@ app.post('/batch-schedule-reminders', (req, res) => {
                 sendAt = appointmentDateTime.toISOString();
             }
 
-            const newReminder = { id, number, message, sendAt, status: 'agendado' };
+            const newReminder = { id, number, message, sendAt, status: 'agended' };
             const existingIndex = allReminders.findIndex(r => r && r.id === id);
 
             if (existingIndex > -1) {
