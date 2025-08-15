@@ -1,4 +1,3 @@
-// =====================================================================
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
 const express = require('express');
@@ -30,7 +29,6 @@ const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
 // =====================================================================
 
 /**
- * **[FUNÇÃO ADICIONADA]**
  * Lê e parseia o arquivo JSON de lembretes de forma segura.
  * @returns {Array} Um array de objetos de lembrete.
  */
@@ -48,7 +46,6 @@ function readRemindersFromDB() {
 }
 
 /**
- * **[FUNÇÃO ADICIONADA]**
  * Escreve o array de lembretes no arquivo JSON.
  * @param {Array} reminders - O array de lembretes a ser salvo.
  */
@@ -174,7 +171,7 @@ const checkAndSendReminders = async () => {
     for (const reminder of dueReminders) {
         const { userId, number, message, id } = reminder;
         
-        // **LÓGICA CENTRAL CORRIGIDA**: Verifica se o bot do usuário específico do lembrete está conectado.
+        // **[LÓGICA CRÍTICA CORRIGIDA]** Verifica se o bot do usuário específico do lembrete está conectado.
         if (clients.has(userId) && clients.get(userId).status === 'Conectado') {
             try {
                 const client = clients.get(userId).client;
@@ -265,7 +262,7 @@ app.post('/batch-schedule-reminders', (req, res) => {
         let remindersWereModified = false;
         
         for (const apt of appointments) {
-            // **VALIDAÇÃO REFORÇADA**: Garante que o userId está presente
+            // Validação reforçada para garantir que todos os campos necessários existam
             if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message || !apt.userId) {
                 continue; 
             }
@@ -284,7 +281,6 @@ app.post('/batch-schedule-reminders', (req, res) => {
                 sendAt = appointmentDateTime.toISOString();
             }
 
-            // O novo lembrete agora inclui o userId
             const newReminder = { id, userId, number, message, sendAt, status: 'agendado' };
             const existingIndex = allReminders.findIndex(r => r && r.id === id);
 

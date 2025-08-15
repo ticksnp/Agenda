@@ -70,6 +70,7 @@ const quillEditors = {};
 let quillEvolutionContent = null;
 const quillTextCache = {};
 let calendar;
+let isCalendarInitialized = false; // [CORREÇÃO] Flag para controlar a renderização inicial do calendário
 let currentPatientList = [];
 let existingProfessionals = [];
 let repeatConfig = null;
@@ -190,7 +191,6 @@ function formatReminderMessage(template, appointment) {
 // =====================================================================
 
 const showSection = (sectionElement) => {
-    console.log(`showSection: Escondendo todas as seções e mostrando ${sectionElement.id}.`);
     // Esconde todas as seções principais
     [agendaSection, patientsSection, patientRecordSection, appointmentsOverviewSection, remindersSection].forEach(sec => sec.classList.add('d-none'));
     
@@ -202,20 +202,19 @@ const showSection = (sectionElement) => {
 };
 
 const showAgendaSection = () => {
-    console.log("showAgendaSection: Exibindo Seção da Agenda.");
     showSection(agendaSection);
+    // [LÓGICA AJUSTADA] Garante que o calendário seja renderizado apenas uma vez, na primeira vez que a seção da agenda for exibida.
+    if (calendar && !isCalendarInitialized) {
+        calendar.render();
+        isCalendarInitialized = true; // Marca como inicializado para não renderizar novamente
+    }
+    // Sempre busca os eventos novamente ao mostrar a agenda para garantir que os dados estão atualizados.
     if (calendar) {
-        if (!calendar.isInitialized) {
-            console.log("showAgendaSection: Renderizando FullCalendar pela primeira vez.");
-            calendar.render();
-        }
-        console.log("showAgendaSection: Refetching eventos do FullCalendar.");
         calendar.refetchEvents();
     }
 };
 
 const showPatientsSection = async () => {
-    console.log("showPatientsSection: Exibindo Seção de Pacientes.");
     showSection(patientsSection);
     const patientsData = await getPatientsFB();
     currentPatientsPage = 1;
@@ -223,13 +222,11 @@ const showPatientsSection = async () => {
 };
 
 const showPatientRecordSection = async (patientId) => {
-    console.log("showPatientRecordSection: Exibindo Seção de Prontuário do Paciente para ID:", patientId);
     showSection(patientRecordSection);
     await populatePatientRecord(patientId);
 };
 
 const showAppointmentsOverviewSection = async () => {
-    console.log("showAppointmentsOverviewSection: Exibindo Seção de Visão Geral de Atendimentos.");
     showSection(appointmentsOverviewSection);
     const appointmentsData = await getAppointmentsFB();
     currentAppointmentsPage = 1;
@@ -237,7 +234,6 @@ const showAppointmentsOverviewSection = async () => {
 };
 
 const showRemindersSection = async () => {
-    console.log("showRemindersSection: Exibindo Seção de Lembretes.");
     if (!auth.currentUser) return;
     showSection(remindersSection);
     const reminders = await getWhatsappReminders(auth.currentUser.uid);
@@ -1636,7 +1632,6 @@ async function populateAppointmentsTable(allAppointments) {
                     document.getElementById('professional').value = apt.professional || '';
                     document.getElementById('patient').value = apt.patient || '';
                     
-                    // [CORREÇÃO] Popula a lista antes de definir o valor
                     populateAgreementsSelect();
                     document.getElementById('agreement').value = apt.agreement || 'Particular';
                     
@@ -2272,7 +2267,6 @@ async function populatePatientRecord(patientId) {
                     document.getElementById('professional').value = apt.professional || '';
                     document.getElementById('patient').value = apt.patient || '';
                     
-                    // [CORREÇÃO] Popula a lista antes de definir o valor
                     populateAgreementsSelect();
                     document.getElementById('agreement').value = apt.agreement || 'Particular';
 
@@ -2380,10 +2374,6 @@ const loadPatientSuggestions = async (patientsData) => {
     currentPatientList = patientsData || await getPatientsFB();
 };
 
-/**
- * **[FUNÇÃO ADICIONADA]**
- * Popula o select de convênios no modal principal de agendamento.
- */
 const populateAgreementsSelect = () => {
     const agreementSelect = document.getElementById('agreement');
     if (!agreementSelect) {
@@ -2631,49 +2621,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // --- OBSERVADOR DE ESTADO DE AUTENTICAÇÃO ---
-    onAuthStateChanged(auth, async (user) => {
-        if (user) {
-            const userId = user.uid;
-
-            initializeSocketConnection(userId);
-
-            mainSidebar.classList.remove('d-none');
-            showAgendaSection();
-
-            await Promise.all([
-                loadAndDisplayProfessionals(),
-                loadPatientSuggestions(),
-                getUserReminderTemplate(),
-            ]);
-            
-            const currentYear = new Date().getFullYear();
-            if (appointmentStartDateFilter) appointmentStartDateFilter.value = `${currentYear}-01-01`;
-            if (appointmentEndDateFilter) appointmentEndDateFilter.value = `${currentYear + 1}-12-31`;
-
-            if (calendar && !calendar.isInitialized) {
-                calendar.render();
-            }
-
-            Swal.close();
-        } else {
-            window.location.href = 'login.html';
-        }
-    });
-
-    // --- LISTENER DE LOGOUT ---
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', async () => {
-            try {
-                await signOut(auth);
-                Swal.fire('Sucesso!', 'Você foi desconectado.', 'success');
-            } catch (error) {
-                Swal.fire('Erro!', 'Não foi possível desconectar. Tente novamente.', 'error');
-            }
-        });
-    }
-
-    // --- INICIALIZAÇÃO DO FULLCALENDAR ---
+    // --- [CORREÇÃO ESTRUTURAL] INICIALIZAÇÃO DO FULLCALENDAR ---
+    // O objeto do calendário é criado ANTES do listener de autenticação.
+    // Isso garante que a variável `calendar` sempre exista quando as funções de navegação forem chamadas.
     const calendarEl = document.getElementById('calendar');
     if (calendarEl) {
         calendar = new FullCalendar.Calendar(calendarEl, {
@@ -2983,6 +2933,46 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    // --- OBSERVADOR DE ESTADO DE AUTENTICAÇÃO ---
+    onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            const userId = user.uid;
+
+            initializeSocketConnection(userId);
+
+            mainSidebar.classList.remove('d-none');
+            showAgendaSection(); // Agora é seguro chamar esta função aqui
+
+            await Promise.all([
+                loadAndDisplayProfessionals(),
+                loadPatientSuggestions(),
+                getUserReminderTemplate(),
+            ]);
+            
+            const currentYear = new Date().getFullYear();
+            if (appointmentStartDateFilter) appointmentStartDateFilter.value = `${currentYear}-01-01`;
+            if (appointmentEndDateFilter) appointmentEndDateFilter.value = `${currentYear + 1}-12-31`;
+
+            // [CORREÇÃO] A lógica de renderização foi movida para showAgendaSection para evitar a condição de corrida.
+
+            Swal.close();
+        } else {
+            window.location.href = 'login.html';
+        }
+    });
+
+    // --- LISTENER DE LOGOUT ---
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', async () => {
+            try {
+                await signOut(auth);
+                Swal.fire('Sucesso!', 'Você foi desconectado.', 'success');
+            } catch (error) {
+                Swal.fire('Erro!', 'Não foi possível desconectar. Tente novamente.', 'error');
+            }
+        });
+    }
+
     // =====================================================================
     // GERENCIAMENTO DE FORMULÁRIOS E MODAIS (EVENT LISTENERS)
     // =====================================================================
@@ -3146,8 +3136,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Altera o botão de bloquear para ser do tipo 'button' para não submeter o formulário diretamente.
-    // A lógica de submissão foi movida para o listener do formulário.
     if(blockHourBtn) {
         blockHourBtn.setAttribute('type', 'submit');
     }
@@ -3180,7 +3168,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         document.getElementById('patientIdForAppointment').value = patient.id;
                         document.getElementById('cellphone').value = patient.cellphone || '';
                         
-                        // [CORREÇÃO] Popula o select antes de definir o valor
                         populateAgreementsSelect();
                         document.getElementById('agreement').value = patient.agreement || 'Particular';
                         
@@ -3247,7 +3234,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('patientIdForAppointment').value = '';
         document.getElementById('professional').value = '';
         
-        // [CORREÇÃO] A chamada da função é reativada para popular o select.
         populateAgreementsSelect();
         
         populateProcedureSelect();
@@ -3445,7 +3431,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('professional').value = appointment.professional || '';
                 document.getElementById('patient').value = appointment.patient || '';
                 
-                // [CORREÇÃO] Popula a lista antes de definir o valor
                 populateAgreementsSelect();
                 document.getElementById('agreement').value = appointment.agreement || 'Particular';
                 
