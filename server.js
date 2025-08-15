@@ -117,19 +117,25 @@ function initializeClient() {
     isReconnecting = false;
 
     console.log('[MANAGER] Inicializando o cliente WhatsApp...');
+
+    // Pega a chave da API das variáveis de ambiente
+    const BROWSERLESS_API_KEY = process.env.BROWSERLESS_API_KEY;
+    if (!BROWSERLESS_API_KEY) {
+        console.error("[ERRO CRÍTICO] A variável de ambiente BROWSERLESS_API_KEY não está definida.");
+        process.exit(1);
+    }
+
     client = new Client({
         authStrategy: new RemoteAuth({
             store: store,
             backupSyncIntervalMs: 300000
         }),
+        // MUDANÇA CRUCIAL: Aponta para o navegador remoto
         puppeteer: {
             headless: true,
-            args: [
-                '--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage',
-                '--disable-accelerated-2d-canvas', '--no-first-run', '--no-zygote',
-                '--single-process', '--disable-gpu'
-            ],
-        },
+            // A mágica acontece aqui:
+            browserWSEndpoint: `wss://chrome.browserless.io?token=${BROWSERLESS_API_KEY}`,
+        }
     });
 
     client.on('qr', (qr) => { 
