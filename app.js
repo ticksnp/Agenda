@@ -1,3 +1,4 @@
+// =====================================================================
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
@@ -5,7 +6,6 @@ import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, dele
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 
-// [CORREÇÃO] Importando todas as funções necessárias do whatsapp-client
 import { 
     initializeSocketConnection, 
     connectWhatsapp, 
@@ -238,9 +238,8 @@ const showAppointmentsOverviewSection = async () => {
 
 const showRemindersSection = async () => {
     console.log("showRemindersSection: Exibindo Seção de Lembretes.");
-    if (!auth.currentUser) return; // Proteção para evitar erro se o usuário não estiver logado
+    if (!auth.currentUser) return;
     showSection(remindersSection);
-    // [CORREÇÃO] Passa o userId para buscar apenas os lembretes do usuário logado
     const reminders = await getWhatsappReminders(auth.currentUser.uid);
     populateRemindersTable(reminders); 
 };
@@ -315,7 +314,6 @@ const deleteAppointmentFB = async (id) => {
         if (!auth.currentUser) throw new Error("Usuário não autenticado.");
         const docRef = doc(db, 'appointments', id);
         await deleteDoc(docRef);
-        // [CORREÇÃO] Passa o userId ao cancelar um lembrete
         await cancelWhatsappReminder(id, auth.currentUser.uid);
         return true;
     } catch (e) {
@@ -1637,7 +1635,11 @@ async function populateAppointmentsTable(allAppointments) {
                     document.getElementById('appointmentEndHour').value = apt.endHour || '';
                     document.getElementById('professional').value = apt.professional || '';
                     document.getElementById('patient').value = apt.patient || '';
+                    
+                    // [CORREÇÃO] Popula a lista antes de definir o valor
+                    populateAgreementsSelect();
                     document.getElementById('agreement').value = apt.agreement || 'Particular';
+                    
                     document.getElementById('authCode').value = apt.authCode || '';
                     document.getElementById('procedure').value = apt.procedure || '';
 
@@ -1737,11 +1739,6 @@ async function populateAppointmentsTable(allAppointments) {
 // --- Lógica para Popular e Gerenciar a Tabela de Lembretes ---
 let remindersListTableBody, reminderFilterStatus, reminderFilterPatientName, reminderFilterStartDate, reminderFilterEndDate;
 
-/**
- * **[CORREÇÃO APLICADA]**
- * A função foi ajustada para ler a propriedade `sendAt` (camelCase) em vez de `sendat`.
- * Adicionada maior robustez para lidar com lembretes inválidos no array.
- */
 function populateRemindersTable(allReminders) {
     if (!remindersListTableBody) return;
 
@@ -1751,21 +1748,18 @@ function populateRemindersTable(allReminders) {
     const endDateFilter = reminderFilterEndDate.value;
 
     const filteredReminders = allReminders.filter(reminder => {
-        // Validação para garantir que o lembrete é um objeto válido com as propriedades necessárias
         if (!reminder || typeof reminder.message !== 'string' || !reminder.sendAt) {
-            return false; // Ignora lembretes inválidos ou sem data de envio
+            return false;
         }
 
         if (statusFilter !== 'Todos' && reminder.status !== statusFilter) {
             return false;
         }
 
-        // Usa a propriedade correta 'sendAt'
         const reminderDate = new Date(reminder.sendAt);
         if (startDateFilter && reminderDate < new Date(startDateFilter + 'T00:00:00Z')) return false;
         if (endDateFilter && reminderDate > new Date(endDateFilter + 'T23:59:59Z')) return false;
 
-        // Extrai o nome do paciente da mensagem
         const match = reminder.message.match(/\*([^*]+)\*/);
         const patientName = match ? match[1].toLowerCase() : 'n/a';
         if (patientNameFilter && !patientName.includes(patientNameFilter)) {
@@ -1782,16 +1776,12 @@ function populateRemindersTable(allReminders) {
         return;
     }
 
-    // Ordena os lembretes por data de envio, do mais recente para o mais antigo
     filteredReminders.sort((a, b) => new Date(b.sendAt) - new Date(a.sendAt));
 
     filteredReminders.forEach(reminder => {
         const row = remindersListTableBody.insertRow();
-        
-        // Usa a propriedade correta 'sendAt'
         const sendAtDate = new Date(reminder.sendAt);
         const formattedDate = sendAtDate.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'medium' });
-        
         const patientMatch = reminder.message.match(/\*([^*]+)\*/);
         const patientName = patientMatch ? patientMatch[1] : 'Envio Imediato';
         
@@ -1820,7 +1810,7 @@ function populateRemindersTable(allReminders) {
         const cancelBtn = row.querySelector('.cancel-reminder-btn');
         if(cancelBtn) {
             cancelBtn.addEventListener('click', async (e) => {
-                if (!auth.currentUser) return; // Proteção
+                if (!auth.currentUser) return;
                 const reminderId = e.currentTarget.dataset.id;
                 Swal.fire({
                     title: 'Tem certeza?',
@@ -1832,10 +1822,8 @@ function populateRemindersTable(allReminders) {
                     cancelButtonText: 'Não'
                 }).then(async (result) => {
                     if (result.isConfirmed) {
-                        // [CORREÇÃO] Passa o userId ao cancelar o lembrete
                         await cancelWhatsappReminder(reminderId, auth.currentUser.uid);
                         Swal.fire('Cancelado!', 'O lembrete foi cancelado.', 'success');
-                        // [CORREÇÃO] Passa o userId para buscar a lista atualizada
                         const updatedReminders = await getWhatsappReminders(auth.currentUser.uid);
                         populateRemindersTable(updatedReminders);
                     }
@@ -2283,7 +2271,11 @@ async function populatePatientRecord(patientId) {
                     document.getElementById('appointmentEndHour').value = apt.endHour || '';
                     document.getElementById('professional').value = apt.professional || '';
                     document.getElementById('patient').value = apt.patient || '';
+                    
+                    // [CORREÇÃO] Popula a lista antes de definir o valor
+                    populateAgreementsSelect();
                     document.getElementById('agreement').value = apt.agreement || 'Particular';
+
                     document.getElementById('authCode').value = apt.authCode || '';
                     document.getElementById('procedure').value = apt.procedure || '';
 
@@ -2386,6 +2378,24 @@ const loadPatientSuggestions = async (patientsData) => {
         return;
     }
     currentPatientList = patientsData || await getPatientsFB();
+};
+
+/**
+ * **[FUNÇÃO ADICIONADA]**
+ * Popula o select de convênios no modal principal de agendamento.
+ */
+const populateAgreementsSelect = () => {
+    const agreementSelect = document.getElementById('agreement');
+    if (!agreementSelect) {
+        return;
+    }
+    agreementSelect.innerHTML = '';
+    AGREEMENT_OPTIONS.forEach(agreement => {
+        const option = document.createElement('option');
+        option.value = agreement;
+        option.textContent = agreement;
+        agreementSelect.appendChild(option);
+    });
 };
 
 const populateAppointmentModalStatusSelect = () => {
@@ -2561,7 +2571,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         detailedEvolutionModalInstance = new bootstrap.Modal(detailedEvolutionModalElement);
     }
     
-    const whatsappModalElement = document.getElementById('whatsappModal');
+      const whatsappModalElement = document.getElementById('whatsappModal');
     if (whatsappModalElement) {
         const connectBtn = document.getElementById('reconnectWhatsappBtn');
         if (connectBtn) {
@@ -2575,7 +2585,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         allowOutsideClick: false, 
                         didOpen: () => Swal.showLoading() 
                     });
-                    // [CORREÇÃO] Passa o userId para a função de conexão
                     connectWhatsapp(userId);
                 } else {
                     Swal.fire('Erro', 'Você precisa estar logado para conectar.', 'error');
@@ -2627,7 +2636,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (user) {
             const userId = user.uid;
 
-            // [CORREÇÃO] Inicia a conexão do socket para ESTE usuário específico
             initializeSocketConnection(userId);
 
             mainSidebar.classList.remove('d-none');
@@ -2941,7 +2949,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await updateAppointmentFB(eventId, updatedAppointmentData);
 
                     const message = formatReminderMessage(userReminderTemplate, finalAppointmentData);
-                    // [CORREÇÃO] Passa o userId ao reagendar lembrete
                     await scheduleBatchWhatsappReminders([{...finalAppointmentData, id: eventId, message: message}], auth.currentUser.uid); 
                     Swal.fire('Sucesso!', 'Agendamento atualizado!', 'success');
                 } else {
@@ -2966,7 +2973,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     
                     const finalAppointmentData = { ...existingAppointment, ...updatedAppointmentData };
                     const message = formatReminderMessage(userReminderTemplate, finalAppointmentData);
-                    // [CORREÇÃO] Passa o userId ao reagendar lembrete
                     await scheduleBatchWhatsappReminders([{...finalAppointmentData, id: eventId, message: message}], auth.currentUser.uid);
                     Swal.fire('Sucesso!', 'Agendamento atualizado!', 'success');
                 } else {
@@ -2989,10 +2995,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 Swal.fire('Acesso Negado', 'Você precisa estar logado para salvar agendamentos.', 'warning');
                 return;
             }
-            const userId = auth.currentUser.uid; 
-            
-            // Lógica para o botão de bloqueio, que agora também usa o submit
-            if (e.submitter && e.submitter.id === 'blockHourBtnSubmit') {
+            const userId = auth.currentUser.uid;
+
+            // Lógica para o botão de bloqueio
+            if (e.submitter && e.submitter.id === 'blockHourBtn') {
                 const appointmentDate = document.getElementById('appointmentDate').value;
                 const appointmentStartHour = document.getElementById('appointmentStartHour').value;
 
@@ -3000,18 +3006,26 @@ document.addEventListener('DOMContentLoaded', async () => {
                     Swal.fire('Atenção!', 'Por favor, selecione a Data e o Horário de início para bloquear.', 'warning');
                     return;
                 }
-
                 const blockedAppointmentData = {
                     date: appointmentDate,
                     startHour: appointmentStartHour,
                     endHour: document.getElementById('appointmentEndHour').value || null,
                     professional: 'N/A',
                     patient: 'Horário Bloqueado',
+                    agreement: 'N/A',
+                    authCode: '',
+                    procedure: '',
                     status: 'Bloqueado',
+                    room: '',
+                    cellphone: '',
+                    smsReminder: 'Sem lembrete',
+                    whatsappReminder: 'Sem lembrete',
+                    observations: 'Horário bloqueado por indisponibilidade.',
+                    realizeFitment: false,
+                    launchFinancial: false,
+                    repeatAppointment: false,
                     patientId: null
-                    // ...outros campos padrão
                 };
-
                 try {
                     await addAppointmentFB(blockedAppointmentData);
                     Swal.fire('Sucesso!', 'Horário bloqueado com sucesso!', 'success');
@@ -3022,7 +3036,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 } catch (error) {
                     Swal.fire('Erro!', 'Não foi possível bloquear o horário. Tente novamente.', 'error');
                 }
-                return; // Impede a continuação para a lógica de agendamento normal
+                return;
             }
 
             // Lógica de agendamento normal
@@ -3088,8 +3102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (appointmentId) {
                     await updateAppointmentFB(appointmentId, baseAppointmentData);
                     const message = formatReminderMessage(userReminderTemplate, baseAppointmentData);
-                    // [CORREÇÃO] Passa o userId ao agendar o lembrete
-                    await scheduleBatchWhatsappReminders([{ ...baseAppointmentData, id: appointmentId, message: message }], userId);
+                    await scheduleBatchWhatsappReminders([{...baseAppointmentData, id: appointmentId, message: message}], userId);
                     Swal.fire('Sucesso!', 'Agendamento atualizado!', 'success');
                 } else {
                     const message = formatReminderMessage(userReminderTemplate, baseAppointmentData);
@@ -3115,7 +3128,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         Swal.fire('Sucesso!', 'Agendamento adicionado!', 'success');
                     }
 
-                    // [CORREÇÃO] Passa o userId ao agendar os lembretes em lote
                     await scheduleBatchWhatsappReminders(remindersBatch, userId);
                 }
                 
@@ -3134,11 +3146,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Adiciona um tipo 'submit' ao botão de bloquear para que ele acione o formulário
+    // Altera o botão de bloquear para ser do tipo 'button' para não submeter o formulário diretamente.
+    // A lógica de submissão foi movida para o listener do formulário.
     if(blockHourBtn) {
         blockHourBtn.setAttribute('type', 'submit');
-        blockHourBtn.setAttribute('form', 'appointmentForm');
-        blockHourBtn.id = 'blockHourBtnSubmit'; // Muda o ID para evitar conflito
     }
 
     patientInput.addEventListener('input', () => {
@@ -3168,7 +3179,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                         patientInput.value = patient.name;
                         document.getElementById('patientIdForAppointment').value = patient.id;
                         document.getElementById('cellphone').value = patient.cellphone || '';
+                        
+                        // [CORREÇÃO] Popula o select antes de definir o valor
+                        populateAgreementsSelect();
                         document.getElementById('agreement').value = patient.agreement || 'Particular';
+                        
                         patientSuggestions.innerHTML = '';
                         patientInfoMessage.classList.add('d-none');
                     });
@@ -3231,7 +3246,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('appointmentId').value = '';
         document.getElementById('patientIdForAppointment').value = '';
         document.getElementById('professional').value = '';
-        //populateAgreementsSelect(); // Esta função não existe, remova ou crie
+        
+        // [CORREÇÃO] A chamada da função é reativada para popular o select.
+        populateAgreementsSelect();
+        
         populateProcedureSelect();
         document.getElementById('smsReminder').value = 'Sem lembrete';
         document.getElementById('whatsappReminder').value = 'Sem lembrete';
@@ -3393,7 +3411,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 try {
                     await updateAppointmentFB(appointmentId, { status: newStatus });
                     if (newStatus === 'Cancelado' || newStatus === 'Faltou' || newStatus === 'Atendido') {
-                        // [CORREÇÃO] Passa o userId ao cancelar lembrete por mudança de status
                         await cancelWhatsappReminder(appointmentId, auth.currentUser.uid);
                     }
                     Swal.fire('Status Atualizado!', `Status do agendamento para ${newStatus}.`, 'success');
@@ -3427,7 +3444,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 document.getElementById('appointmentEndHour').value = appointment.endHour || '';
                 document.getElementById('professional').value = appointment.professional || '';
                 document.getElementById('patient').value = appointment.patient || '';
+                
+                // [CORREÇÃO] Popula a lista antes de definir o valor
+                populateAgreementsSelect();
                 document.getElementById('agreement').value = appointment.agreement || 'Particular';
+                
                 document.getElementById('authCode').value = appointment.authCode || '';
                 document.getElementById('procedure').value = appointment.procedure || '';
 
@@ -3562,13 +3583,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const evaluationContentData = {};
         for (const key in quillEditors) {
             if (quillEditors[key]) {
-                const content = quillEditors[key].getContents();
-                // Verifica se o editor tem algum conteúdo além de uma nova linha vazia
-                if (content.ops.length > 1 || (content.ops[0] && content.ops[0].insert.trim() !== '')) {
-                    evaluationContentData[key] = JSON.stringify(content);
-                } else {
-                    evaluationContentData[key] = null; // Salva como nulo se estiver vazio
-                }
+                evaluationContentData[key] = JSON.stringify(quillEditors[key].getContents());
             }
         }
 
@@ -3631,13 +3646,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const evolutionLaunchFinancial = document.getElementById('evolutionLaunchFinancial').checked;
         const evolutionProcedure = document.getElementById('evolutionProcedure').value;
 
-        let evolutionContent = null;
-        if (quillEvolutionContent) {
-            const content = quillEvolutionContent.getContents();
-            if (content.ops.length > 1 || (content.ops[0] && content.ops[0].insert.trim() !== '')) {
-                evolutionContent = JSON.stringify(content);
-            }
-        }
+        const evolutionContent = quillEvolutionContent ? JSON.stringify(quillEvolutionContent.getContents()) : '';
 
         const attachedFiles = document.getElementById('attachedFiles').files;
         if (attachedFiles.length > 0) {
@@ -3921,7 +3930,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function refreshAndPopulateReminders() {
         if (auth.currentUser) {
-            // [CORREÇÃO] Passa o userId para buscar os lembretes corretos
             const reminders = await getWhatsappReminders(auth.currentUser.uid);
             populateRemindersTable(reminders);
         }
@@ -4082,9 +4090,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         repeatSetupForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            if (!auth.currentUser) return; // Proteção
+            if (!auth.currentUser) return;
             const userId = auth.currentUser.uid;
-
             const baseAppointmentId = repeatSetupModalElement.dataset.baseAppointmentId;
     
             const frequency = document.getElementById('repeatFrequency').value;
@@ -4132,6 +4139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             repeatAppointment: true,
                             repeatConfig: newRepeatConfig,
                             createdAt: new Date(),
+                            id: null
                         };
                         delete newAppointmentData.id;
                         const message = formatReminderMessage(userReminderTemplate, newAppointmentData);
@@ -4139,7 +4147,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                         remindersBatch.push({ ...newAppointmentData, id: newId, message: message });
                     }
                     
-                    // [CORREÇÃO] Passa o userId ao agendar os lembretes em lote
                     await scheduleBatchWhatsappReminders(remindersBatch, userId);
     
                     Swal.fire('Sucesso!', `Repetição criada e ${generated.length} novo(s) agendamento(s) adicionado(s)!`, 'success');
@@ -4155,7 +4162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else {
                 repeatConfig = newRepeatConfig;
                 repeatSetupModalInstance.hide();
-                document.getElementById('appointmentForm').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+                document.getElementById('appointmentForm').requestSubmit();
             }
         });
     }
@@ -4231,7 +4238,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                     remindersBatch.push({ ...newAppointmentData, id: newId, message: message });
                 }
 
-                // [CORREÇÃO] Passa o userId ao agendar os lembretes em lote
                 await scheduleBatchWhatsappReminders(remindersBatch, userId);
 
                 Swal.fire('Sucesso!', `${uniqueNewAppointments.length} novos agendamentos adicionados!`, 'success');
