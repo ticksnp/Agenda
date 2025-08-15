@@ -2,84 +2,167 @@
 // MÓDULOS E CONFIGURAÇÃO INICIAL
 // =====================================================================
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const http = require('http');
+const { Server } = require("socket.io");
+const { Client, LocalAuth } = require('whatsapp-web.js'); // Voltamos para LocalAuth
 const qrcode = require('qrcode-terminal');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
-// Captura de exceções não tratadas para log, mas evita que o servidor caia.
 process.on('uncaughtException', (err) => {
     console.error('[ERRO FATAL NÃO CAPTURADO]', err);
 });
 
 const app = express();
+const httpServer = http.createServer(app);
+const io = new Server(httpServer, {
+  cors: { origin: "*", methods: ["GET", "POST"] } // Permite qualquer origem localmente
+});
+
 app.use(cors());
 app.use(express.json());
 
 const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
-const SESSION_PATH = './.wwebjs_auth';
 
 // =====================================================================
-// FUNÇÕES DO BANCO DE DADOS (reminders.json)
+// GERENCIADOR DE BOTS (A MUDANÇA CENTRAL)
 // =====================================================================
 
-function readRemindersFromDB() {
-    if (!fs.existsSync(REMINDERS_DB_PATH)) {
-        fs.writeFileSync(REMINDERS_DB_PATH, '[]', 'utf8');
-        return [];
+const clients = new Map(); // Armazena as instâncias: { userId => { client, status, qr } }
+
+function createWhatsappClient(userId) {
+    if (clients.has(userId)) {
+        console.log(`[MANAGER] Instância já existe para o usuário: ${userId}`);
+        return clients.get(userId).client;
     }
-    try {
-        const data = fs.readFileSync(REMINDERS_DB_PATH, 'utf8');
-        return data.trim() === '' ? [] : JSON.parse(data);
-    } catch (e) {
-        console.error("Erro ao ler reminders.json:", e);
-        return [];
+
+    console.log(`[MANAGER] Criando nova instância de cliente para o usuário: ${userId}`);
+    
+    const client = new Client({
+        // MUDANÇA: A sessão agora é salva em uma pasta única para cada usuário
+        authStrategy: new LocalAuth({ 
+            clientId: userId,
+            dataPath: path.join(__dirname, 'sessions') // Pasta principal para todas as sessões
+        }), 
+        puppeteer: { 
+            headless: true, 
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] 
+        } 
+    });
+
+    clients.set(userId, { client, status: 'Inicializando...', qr: null });
+
+    client.on('qr', (qr) => {
+        console.log(`[EVENT] QR Code gerado para: ${userId}`);
+        const session = clients.get(userId);
+        session.status = 'Aguardando QR Code';
+        session.qr = qr;
+        io.to(userId).emit('status_update', { status: session.status, qr: session.qr });
+    });
+
+    client.on('ready', () => {
+        console.log(`[EVENT] Cliente pronto para: ${userId}`);
+        const session = clients.get(userId);
+        session.status = 'Conectado';
+        session.qr = null;
+        io.to(userId).emit('status_update', { status: session.status });
+    });
+
+    client.on('disconnected', async (reason) => {
+        console.log(`[EVENT] Cliente desconectado para ${userId}. Motivo: ${reason}`);
+        await destroyClient(userId);
+        io.to(userId).emit('status_update', { status: 'Desconectado', message: 'A conexão foi perdida.' });
+    });
+
+    client.initialize().catch(err => {
+        console.error(`[ERRO CRÍTICO] Falha ao inicializar cliente para ${userId}:`, err.message);
+        destroyClient(userId);
+    });
+
+    return client;
+}
+
+async function destroyClient(userId) {
+    if (clients.has(userId)) {
+        const { client } = clients.get(userId);
+        try {
+            await client.destroy();
+        } catch (e) {
+            console.error(`Erro ao destruir cliente para ${userId}:`, e.message);
+        }
+        clients.delete(userId);
+        console.log(`[MANAGER] Instância para o usuário ${userId} destruída e removida.`);
     }
 }
 
-function writeRemindersToDB(reminders) {
-    try {
-        fs.writeFileSync(REMINDERS_DB_PATH, JSON.stringify(reminders, null, 2), 'utf8');
-    } catch (e) {
-        console.error("Erro CRÍTICO ao salvar reminders.json:", e);
+// =====================================================================
+// LÓGICA DO SOCKET.IO
+// =====================================================================
+
+io.on('connection', (socket) => {
+    const userId = socket.handshake.query.userId;
+    if (!userId) {
+        return socket.disconnect();
     }
-}
+    
+    console.log(`[SOCKET] Usuário ${userId} conectou-se com socket ID: ${socket.id}`);
+    socket.join(userId); // Coloca o usuário em uma "sala" privada
 
-let allReminders = readRemindersFromDB();
+    if (clients.has(userId)) {
+        const { status, qr } = clients.get(userId);
+        socket.emit('status_update', { status, qr });
+    } else {
+        socket.emit('status_update', { status: 'Desconectado', message: 'Clique em Conectar para iniciar.' });
+    }
+
+    socket.on('disconnect', () => {
+        console.log(`[SOCKET] Usuário ${userId} desconectou-se.`);
+    });
+});
 
 // =====================================================================
-// AGENDADOR DE LEMBRETES (Scheduler)
+// ENDPOINTS DA API E LÓGICA DE LEMBRETES
 // =====================================================================
 
+// Endpoint para o front-end solicitar a inicialização do seu bot
+app.post('/connect', (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: "userId é obrigatório." });
+
+    createWhatsappClient(userId);
+    res.status(200).json({ message: "Inicialização do cliente solicitada." });
+});
 const checkAndSendReminders = async () => {
-    if (whatsappState.status !== 'Conectado' || !client) {
-        return;
-    }
-
+    const allReminders = readRemindersFromDB();
     const now = new Date();
     let remindersModified = false;
 
-    const dueReminders = allReminders.filter(reminder => 
-        reminder && reminder.status === 'agendado' && new Date(reminder.sendAt) <= now
-    );
+    const dueReminders = allReminders.filter(r => r && r.status === 'agendado' && new Date(r.sendAt) <= now);
 
     for (const reminder of dueReminders) {
-        try {
-            const chatId = `${reminder.number}@c.us`;
-            await client.sendMessage(chatId, reminder.message);
-            
-            const reminderIndex = allReminders.findIndex(r => r.id === reminder.id);
-            if (reminderIndex > -1) {
-                allReminders[reminderIndex].status = 'enviado';
-                remindersModified = true;
-            }
-        } catch (error) {
-            console.error(`[SCHEDULER] Falha ao enviar para ${reminder.number}. Erro:`, error.message);
-            const reminderIndex = allReminders.findIndex(r => r.id === reminder.id);
-             if (reminderIndex > -1) {
-                allReminders[reminderIndex].status = 'falhou';
-                remindersModified = true;
+        const { userId, number, message, id } = reminder;
+        
+        // Verifica se o bot do usuário correspondente está conectado
+        if (clients.has(userId) && clients.get(userId).status === 'Conectado') {
+            try {
+                const client = clients.get(userId).client;
+                const chatId = `${number}@c.us`;
+                await client.sendMessage(chatId, message);
+                
+                // Atualiza o status do lembrete
+                const reminderIndex = allReminders.findIndex(r => r.id === id);
+                if (reminderIndex > -1) {
+                    allReminders[reminderIndex].status = 'enviado';
+                    remindersModified = true;
+                }
+            } catch (error) {
+                console.error(`[SCHEDULER] Falha ao enviar para ${number} do usuário ${userId}. Erro:`, error.message);
+                const reminderIndex = allReminders.findIndex(r => r.id === id);
+                if (reminderIndex > -1) {
+                    allReminders[reminderIndex].status = 'falhou';
+                    remindersModified = true;
+                }
             }
         }
     }
@@ -88,84 +171,7 @@ const checkAndSendReminders = async () => {
         writeRemindersToDB(allReminders);
     }
 };
-
 setInterval(checkAndSendReminders, 30000);
-
-// =====================================================================
-// GERENCIAMENTO DO CICLO DE VIDA DO CLIENTE WHATSAPP
-// =====================================================================
-
-let whatsappState = { status: 'Inicializando...', qr: null, message: 'Servidor está inicializando.' };
-let client;
-let isReconnecting = false;
-
-function initializeClient() {
-    if (client) return;
-    isReconnecting = false;
-
-    console.log('[MANAGER] Inicializando o cliente WhatsApp...');
-    client = new Client({ 
-        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
-        puppeteer: { 
-            headless: true, 
-            args: ['--no-sandbox', '--disable-setuid-sandbox'] 
-        } 
-    });
-
-    client.on('qr', (qr) => { 
-        qrcode.generate(qr, { small: true }); 
-        whatsappState = { status: 'Aguardando QR Code', qr: qr, message: 'Escaneie o QR Code para conectar.' }; 
-    });
-
-    client.on('ready', () => { 
-        console.log('[EVENT] Cliente do WhatsApp conectado e pronto!'); 
-        whatsappState = { status: 'Conectado', qr: null, message: 'Cliente conectado com sucesso.' }; 
-    });
-
-    client.on('disconnected', (reason) => { 
-        console.error(`[EVENT] Cliente desconectado. Motivo: ${reason}. Iniciando processo de reconexão automática.`); 
-        handleReconnection();
-    });
-
-    client.on('auth_failure', (msg) => { 
-        console.error(`[EVENT] Falha de autenticação: ${msg}. A sessão é inválida e será removida.`);
-        handleReconnection(true);
-    });
-
-    client.initialize().catch(err => {
-        console.error("[ERRO CRÍTICO] Falha ao inicializar o cliente:", err.message);
-        handleReconnection();
-    });
-}
-
-async function handleReconnection(removeSession = false) {
-    if (isReconnecting) return;
-    isReconnecting = true;
-    
-    whatsappState = { status: 'Reconectando...', qr: null, message: 'A conexão foi perdida. Tentando restabelecer...' };
-    console.log('[MANAGER] Iniciando processo de reconexão...');
-
-    if (client) {
-        try {
-            await client.destroy();
-            console.log('[MANAGER] Instância do cliente antigo destruída com sucesso.');
-        } catch (e) {
-            console.error('[MANAGER] Erro ao destruir o cliente antigo:', e.message);
-        }
-    }
-    client = null;
-
-    if (removeSession && fs.existsSync(SESSION_PATH)) {
-        console.log('[MANAGER] Removendo pasta de sessão antiga para forçar novo QR Code.');
-        fs.rmSync(SESSION_PATH, { recursive: true, force: true });
-    }
-    
-    setTimeout(initializeClient, 5000);
-}
-
-// =====================================================================
-// ENDPOINTS DA API
-// =====================================================================
 
 app.get('/status', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache');
@@ -258,7 +264,6 @@ app.post('/batch-schedule-reminders', (req, res) => {
 // INICIALIZAÇÃO DO SERVIDOR
 // =====================================================================
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Servidor de lembretes rodando na porta ${PORT}`);
-    initializeClient();
+httpServer.listen(PORT, () => {
+    console.log(`Servidor gerenciador de bots rodando na porta ${PORT}`);
 });

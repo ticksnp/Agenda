@@ -96,5 +96,12 @@
     "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* *Neuropsicóloga no dia *14/08/2025* às *10:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência para evitar cobrança*.\n\nChave PIX Celular (caso necessário):\n54991798433\n",
     "sendAt": "2025-08-14T08:21:17.795Z",
     "status": "enviado"
+  },
+  {
+    "id": "aKTUBI5j64ivoRPUZyrC",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* *Neuropsicóloga* no dia *15/08/2025* às *08:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência para evitar cobrança*.\n\nChave PIX Celular (caso necessário):\n54991798433\n",
+    "sendAt": "2025-08-15T05:37:17.857Z",
+    "status": "enviado"
   }
 ]

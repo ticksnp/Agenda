@@ -1,14 +1,12 @@
+// =====================================================================
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
-
-// Importa os módulos do Firebase CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 
-// MUDANÇA APLICADA AQUI: Garante que o nome da função está correto (handleWhatsappLogic)
-import { handleWhatsappLogic, checkWhatsappStatus, cancelWhatsappReminder, reconnectWhatsapp, getWhatsappReminders, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
+import { initializeSocketConnection, connectWhatsapp, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
 
 // Suas credenciais do Firebase
 const firebaseConfig = {
@@ -314,7 +312,6 @@ const deleteAppointmentFB = async (id) => {
         throw e;
     }
 };
-
 const addProfessionalFB = async (professional) => {
     try {
         if (!auth.currentUser) throw new Error("Usuário não autenticado.");
@@ -2551,39 +2548,36 @@ document.addEventListener('DOMContentLoaded', async () => {
         detailedEvolutionModalInstance = new bootstrap.Modal(detailedEvolutionModalElement);
     }
     
-     const whatsappModalElement = document.getElementById('whatsappModal');
+      const whatsappModalElement = document.getElementById('whatsappModal');
     if (whatsappModalElement) {
-        whatsappModalElement.addEventListener('show.bs.modal', () => {
-            checkWhatsappStatus(); 
-            whatsappStatusInterval = setInterval(checkWhatsappStatus, 3000);
-        });
-
-        whatsappModalElement.addEventListener('hide.bs.modal', () => {
-            if (whatsappStatusInterval) {
-                clearInterval(whatsappStatusInterval);
-                whatsappStatusInterval = null;
-            }
-        });
-
-        const checkWhatsappStatusBtn = document.getElementById('checkWhatsappStatusBtn');
-        if (checkWhatsappStatusBtn) {
-            checkWhatsappStatusBtn.addEventListener('click', checkWhatsappStatus);
+        const connectBtn = document.getElementById('reconnectWhatsappBtn');
+        if (connectBtn) {
+            // MUDANÇA: O botão agora solicita a conexão para o usuário logado
+            connectBtn.textContent = 'Conectar / Gerar QR Code'; // Garante o texto correto
+            connectBtn.onclick = () => {
+                if (auth.currentUser) {
+                    const userId = auth.currentUser.uid;
+                    Swal.fire({ 
+                        title: 'Aguarde...', 
+                        text: 'Solicitando conexão com o WhatsApp...', 
+                        allowOutsideClick: false, 
+                        didOpen: () => Swal.showLoading() 
+                    });
+                    connectWhatsapp(userId);
+                    // A UI será atualizada pelos eventos do socket
+                } else {
+                    Swal.fire('Erro', 'Você precisa estar logado para conectar.', 'error');
+                }
+            };
         }
-        document.getElementById('reconnectWhatsappBtn')?.addEventListener('click', async () => {
-             Swal.fire({ title: 'Aguarde...', text: 'Enviando solicitação de reconexão.', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
-             try {
-                await reconnectWhatsapp();
-                Swal.update({text: 'Solicitação enviada. Verifique o status novamente em alguns segundos.'});
-                setTimeout(() => {
-                    checkWhatsappStatus();
-                    Swal.close();
-                }, 3000);
-             } catch(e) {
-                Swal.fire('Erro', `Não foi possível solicitar a reconexão: ${e.message}`, 'error');
-             }
-        });
+        
+        // O botão "Verificar Status" agora se torna um fallback, não é mais a principal forma de atualização
+        const checkStatusBtn = document.getElementById('checkWhatsappStatusBtn');
+        if (checkStatusBtn) {
+            checkStatusBtn.style.display = 'none'; // Opcional: esconde o botão, pois o status é em tempo real
+        }
     }
-    
+
     repeatRenewalModalElement = document.getElementById('repeatRenewalModal');
     repeatRenewalModalInstance = repeatRenewalModalElement ? new bootstrap.Modal(repeatRenewalModalElement) : null;
     
@@ -2620,11 +2614,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     // --- OBSERVADOR DE ESTADO DE AUTENTICAÇÃO ---
     onAuthStateChanged(auth, async (user) => {
         if (user) {
-            // USUÁRIO LOGADO: Inicia a aplicação
-            Swal.fire({
-                title: 'Carregando dados...', allowOutsideClick: false,
-                didOpen: () => Swal.showLoading()
-            });
+            // USUÁRIO LOGADO
+            const userId = user.uid; // Pega o ID único do usuário logado
+
+            // MUDANÇA: Inicia a conexão do socket para ESTE usuário específico
+            initializeSocketConnection(userId);
 
             // Torna a sidebar e o conteúdo principal visíveis
             mainSidebar.classList.remove('d-none');
@@ -2983,26 +2977,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     // =====================================================================
 
     const appointmentForm = document.getElementById('appointmentForm');
-
-    const populateAgreementsSelect = () => {
-        agreementSelect.innerHTML = '';
-        AGREEMENT_OPTIONS.forEach(agreement => {
-            const option = document.createElement('option');
-            option.value = agreement;
-            option.textContent = agreement;
-            agreementSelect.appendChild(option);
-        });
-    };
-    populateAgreementsSelect();
-    populateProcedureSelect();
-
-    if (blockHourBtn) {
-        blockHourBtn.addEventListener('click', async (e) => {
+    if (appointmentForm) {
+        appointmentForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             if (!auth.currentUser) {
-                Swal.fire('Acesso Negado', 'Você precisa estar logado para bloquear horários.', 'warning');
+                Swal.fire('Acesso Negado', 'Você precisa estar logado para salvar agendamentos.', 'warning');
                 return;
             }
+            const userId = auth.currentUser.uid; // Pega o UID do usuário atual
             const appointmentDate = document.getElementById('appointmentDate').value;
             const appointmentStartHour = document.getElementById('appointmentStartHour').value;
             const appointmentEndHour = document.getElementById('appointmentEndHour').value;
@@ -3164,7 +3146,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (appointmentId) {
                 await updateAppointmentFB(appointmentId, baseAppointmentData);
                 const message = formatReminderMessage(userReminderTemplate, baseAppointmentData);
-                await scheduleBatchWhatsappReminders([{ ...baseAppointmentData, id: appointmentId, message: message }]);
+                await scheduleBatchWhatsappReminders(remindersBatch, userId);
                 Swal.fire('Sucesso!', 'Agendamento atualizado!', 'success');
             } else {
                 const message = formatReminderMessage(userReminderTemplate, baseAppointmentData);
