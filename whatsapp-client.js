@@ -2,42 +2,10 @@ import QRCode from 'https://esm.sh/qrcode';
 
 const WHATSAPP_SERVER_URL = 'http://localhost:3000';
 
-// Funções auxiliares não exportadas (usadas apenas dentro deste arquivo)
-async function sendWhatsappReminder(number, message) {
-    try {
-        const response = await fetch(`${WHATSAPP_SERVER_URL}/send-reminder`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ number, message }),
-        });
-        if (!response.ok) throw new Error('Erro do servidor.');
-        Swal.fire('Sucesso!', 'Lembrete do WhatsApp enviado!', 'success');
-    } catch (error) {
-        Swal.fire('Erro de Conexão', `Não foi possível enviar o lembrete. Detalhes: ${error.message}`, 'error');
-    }
-}
-
-async function scheduleWhatsappReminder(id, number, message, sendAt) {
-    try {
-        // Esta função está sendo substituída pela versão em lote, mas mantida para referência
-        await fetch(`${WHATSAPP_SERVER_URL}/schedule-reminder`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id, number, message, sendAt, status: 'agendado' }),
-        });
-    } catch (error) {
-        console.error(`Erro ao agendar lembrete para o ID ${id}:`, error);
-    }
-}
-
 // =====================================================================
 // FUNÇÕES EXPORTADAS (Usadas pelo app.js)
 // =====================================================================
 
-/**
- * **[CORREÇÃO APLICADA]**
- * A palavra-chave 'export' foi adicionada para que o app.js possa importar e usar esta função.
- */
 export async function scheduleBatchWhatsappReminders(appointments) {
     if (!appointments || appointments.length === 0) {
         console.log("Nenhum lembrete para enviar em lote.");
@@ -57,18 +25,12 @@ export async function scheduleBatchWhatsappReminders(appointments) {
 }
 
 export async function handleWhatsappLogic(appointmentData, appointmentId) {
-    const { whatsappReminder, cellphone, patient, professional, date, startHour } = appointmentData;
+    const { whatsappReminder, cellphone } = appointmentData;
     
-    // Se não há celular ou lembrete definido, cancela qualquer lembrete agendado para este ID
     if (!cellphone || whatsappReminder === 'Sem lembrete') {
         await cancelWhatsappReminder(appointmentId);
         return;
     }
-
-    // A lógica de agendamento agora é centralizada no `app.js` através da função de lote.
-    // Esta função `handleWhatsappLogic` torna-se obsoleta para o agendamento,
-    // mas a mantemos caso seja usada para envios imediatos ou cancelamentos.
-    // O agendamento principal ocorre no submit do formulário em `app.js`.
 }
 
 export async function checkWhatsappStatus() {
@@ -92,7 +54,7 @@ export async function checkWhatsappStatus() {
             case 'Aguardando QR Code':
                 statusEl.className = 'badge bg-warning text-dark';
                 if (data.qr && qrCodeContainer.dataset.qr !== data.qr) {
-                    qrCodeContainer.innerHTML = ''; // Limpa o conteúdo anterior
+                    qrCodeContainer.innerHTML = '';
                     const canvas = document.createElement('canvas');
                     qrCodeContainer.appendChild(canvas);
                     QRCode.toCanvas(canvas, data.qr, { width: 256 }, (error) => {
@@ -107,7 +69,7 @@ export async function checkWhatsappStatus() {
             default:
                 statusEl.className = 'badge bg-danger';
                 qrCodeContainer.innerHTML = `<p class="text-center text-muted p-3">${data.message || 'O cliente não está conectado ou está inicializando.'}</p>`;
-                qrCodeContainer.dataset.qr = ''; // Limpa o QR code antigo
+                qrCodeContainer.dataset.qr = '';
                 break;
         }
     } catch (error) {
@@ -142,7 +104,6 @@ export async function reconnectWhatsapp() {
 }
 
 export async function getWhatsappReminders() {
-    console.log("Buscando lembretes do servidor...");
     try {
         const response = await fetch(`${WHATSAPP_SERVER_URL}/reminders`);
         
@@ -150,7 +111,6 @@ export async function getWhatsappReminders() {
             throw new Error(`O servidor respondeu com status: ${response.status}`);
         }
         const data = await response.json();
-        // Garante que sempre retornará um array, mesmo que a resposta seja malformada
         return Array.isArray(data) ? data : [];
     } catch (error) {
         console.error("Falha CRÍTICA ao buscar lembretes do servidor.", error);

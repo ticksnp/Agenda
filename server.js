@@ -89,7 +89,7 @@ const checkAndSendReminders = async () => {
     }
 };
 
-setInterval(checkAndSendReminders, 30000); // Roda a cada 30 segundos
+setInterval(checkAndSendReminders, 30000);
 
 // =====================================================================
 // GERENCIAMENTO DO CICLO DE VIDA DO CLIENTE WHATSAPP
@@ -97,14 +97,10 @@ setInterval(checkAndSendReminders, 30000); // Roda a cada 30 segundos
 
 let whatsappState = { status: 'Inicializando...', qr: null, message: 'Servidor está inicializando.' };
 let client;
-let isReconnecting = false; // Flag para evitar múltiplas tentativas de reconexão
+let isReconnecting = false;
 
-/**
- * **FUNÇÃO CENTRAL E DEFINITIVA**
- * Inicializa um novo cliente WhatsApp e anexa os listeners de eventos.
- */
 function initializeClient() {
-    if (client) return; // Se já existe um cliente, não faz nada.
+    if (client) return;
     isReconnecting = false;
 
     console.log('[MANAGER] Inicializando o cliente WhatsApp...');
@@ -133,7 +129,7 @@ function initializeClient() {
 
     client.on('auth_failure', (msg) => { 
         console.error(`[EVENT] Falha de autenticação: ${msg}. A sessão é inválida e será removida.`);
-        handleReconnection(true); // O 'true' força a remoção da sessão.
+        handleReconnection(true);
     });
 
     client.initialize().catch(err => {
@@ -142,12 +138,6 @@ function initializeClient() {
     });
 }
 
-/**
- * **FUNÇÃO DEFINITIVA DE RECONEXÃO**
- * Destrói o cliente antigo de forma segura, limpa a sessão se necessário,
- * e reinicia o processo de criação de um novo cliente.
- * @param {boolean} removeSession - Se true, apaga a pasta da sessão para forçar um novo QR code.
- */
 async function handleReconnection(removeSession = false) {
     if (isReconnecting) return;
     isReconnecting = true;
@@ -170,7 +160,6 @@ async function handleReconnection(removeSession = false) {
         fs.rmSync(SESSION_PATH, { recursive: true, force: true });
     }
     
-    // Aguarda um pouco antes de tentar de novo para evitar loops rápidos
     setTimeout(initializeClient, 5000);
 }
 
@@ -183,22 +172,15 @@ app.get('/status', (req, res) => {
     res.status(200).json(whatsappState);
 });
 
-/**
- * **ENDPOINT DEFINITIVO DE RECONEXÃO**
- * Este é o endpoint que o botão da sua PWA chama. Ele agora é seguro e
- * não derruba o servidor.
- */
 app.post('/reconnect', async (req, res) => {
     if (isReconnecting) {
         return res.status(409).json({ message: 'Processo de reconexão já está em andamento.' });
     }
     console.log('[API] Recebida solicitação do usuário para forçar reconexão.');
     res.status(202).json({ message: 'Processo de reconexão iniciado. Aguarde um novo QR Code se necessário.' });
-    // Chama a função segura, forçando a remoção da sessão para gerar um novo QR Code.
     await handleReconnection(true);
 });
 
-// Os endpoints restantes não precisam de alteração
 app.get('/reminders', (req, res) => res.status(200).json(allReminders));
 
 app.post('/cancel-reminder', (req, res) => {
@@ -222,9 +204,6 @@ app.post('/cancel-reminder', (req, res) => {
     }
 });
 
-// =====================================================================
-// == A CORREÇÃO ESTÁ AQUI ==
-// =====================================================================
 app.post('/batch-schedule-reminders', (req, res) => {
     try {
         const appointments = req.body;
@@ -234,16 +213,12 @@ app.post('/batch-schedule-reminders', (req, res) => {
         
         let remindersWereModified = false;
         for (const apt of appointments) {
-            // Valida se o agendamento tem todos os campos necessários, incluindo a 'message'
             if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message) {
-                continue; // Pula este agendamento se estiver incompleto
+                continue; 
             }
             
             const { id, cellphone, whatsappReminder, date, startHour, message } = apt;
             const number = `55${String(cellphone).replace(/\D/g, '')}`;
-
-            // A lógica de criar a mensagem foi REMOVIDA daqui.
-            // Agora, simplesmente usamos a 'message' que já veio do cliente (app.js).
 
             let sendAt;
             if (whatsappReminder === 'Enviar agora') {
@@ -285,5 +260,5 @@ app.post('/batch-schedule-reminders', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor de lembretes rodando na porta ${PORT}`);
-    initializeClient(); // Inicia o cliente pela primeira vez.
+    initializeClient();
 });

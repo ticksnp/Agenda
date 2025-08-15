@@ -1,8 +1,6 @@
 // =====================================================================
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
-
-// Importa os módulos do Firebase CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
@@ -2552,7 +2550,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         detailedEvolutionModalInstance = new bootstrap.Modal(detailedEvolutionModalElement);
     }
     
-    const whatsappModalElement = document.getElementById('whatsappModal');
+     const whatsappModalElement = document.getElementById('whatsappModal');
     if (whatsappModalElement) {
         whatsappModalElement.addEventListener('show.bs.modal', () => {
             checkWhatsappStatus(); 
