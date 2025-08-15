@@ -1,12 +1,13 @@
-// =====================================================================
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
+
+// Importa os módulos do Firebase CDN
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-app.js";
 import { getFirestore, collection, addDoc, getDocs, doc, getDoc, updateDoc, deleteDoc, query, where, setDoc } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-firestore.js";
 import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-auth.js";
 import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.4.0/firebase-analytics.js";
 
-// Importa as funções de cliente do WhatsApp do arquivo separado
+// MUDANÇA APLICADA AQUI: Garante que o nome da função está correto (handleWhatsappLogic)
 import { handleWhatsappLogic, checkWhatsappStatus, cancelWhatsappReminder, reconnectWhatsapp, getWhatsappReminders, scheduleBatchWhatsappReminders } from './whatsapp-client.js';
 
 // Suas credenciais do Firebase
@@ -2582,7 +2583,7 @@ document.addEventListener('DOMContentLoaded', async () => {
              }
         });
     }
-
+    
     repeatRenewalModalElement = document.getElementById('repeatRenewalModal');
     repeatRenewalModalInstance = repeatRenewalModalElement ? new bootstrap.Modal(repeatRenewalModalElement) : null;
     
