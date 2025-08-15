@@ -2,11 +2,13 @@
 // MÓDULOS E CONFIGURAÇÃO INICIAL
 // =====================================================================
 const express = require('express');
-const { Client, LocalAuth } = require('whatsapp-web.js');
+const { Client, RemoteAuth } = require('whatsapp-web.js'); // MUDANÇA: RemoteAuth em vez de LocalAuth
 const qrcode = require('qrcode-terminal');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
+const mongoose = require('mongoose');
+const { MongoStore } = require('wwebjs-mongo'); // MUDANÇA: Importa o MongoStore
 
 // Captura de exceções não tratadas para log, mas evita que o servidor caia.
 process.on('uncaughtException', (err) => {
@@ -14,18 +16,38 @@ process.on('uncaughtException', (err) => {
 });
 
 const app = express();
-
+// MUDANÇA: Configuração de CORS mais segura
 app.use(cors({
-  origin: 'https://fsagenda.netlify.app'
-  }));
-
+  origin: 'https://fsagenda.netlify.app' // Garante que apenas seu site possa acessar
+}));
 app.use(express.json());
 
 const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
-const SESSION_PATH = './.wwebjs_auth';
 
 // =====================================================================
-// FUNÇÕES DO BANCO DE DADOS (reminders.json)
+// CONFIGURAÇÃO DO BANCO DE DADOS (MongoDB) PARA SESSÃO
+// =====================================================================
+// Carrega a URL do banco de dados das variáveis de ambiente
+const MONGODB_URI = process.env.MONGODB_URI; 
+
+if (!MONGODB_URI) {
+    console.error("[ERRO CRÍTICO] A variável de ambiente MONGODB_URI não está definida.");
+    process.exit(1); // Encerra o processo se não houver conexão com o BD
+}
+
+let store;
+mongoose.connect(MONGODB_URI).then(() => {
+    store = new MongoStore({ mongoose: mongoose });
+    console.log("[MANAGER] Conectado ao MongoDB com sucesso para armazenar a sessão.");
+    // Inicia o cliente do WhatsApp SÓ DEPOIS de conectar ao BD
+    initializeClient();
+}).catch(err => {
+    console.error("[ERRO CRÍTICO] Não foi possível conectar ao MongoDB.", err);
+    process.exit(1);
+});
+
+// =====================================================================
+// FUNÇÕES DO BANCO DE DADOS (reminders.json) - Sem alterações
 // =====================================================================
 
 function readRemindersFromDB() {
@@ -53,7 +75,7 @@ function writeRemindersToDB(reminders) {
 let allReminders = readRemindersFromDB();
 
 // =====================================================================
-// AGENDADOR DE LEMBRETES (Scheduler)
+// AGENDADOR DE LEMBRETES (Scheduler) - Sem alterações
 // =====================================================================
 
 const checkAndSendReminders = async () => {
@@ -99,25 +121,36 @@ setInterval(checkAndSendReminders, 30000); // Roda a cada 30 segundos
 // GERENCIAMENTO DO CICLO DE VIDA DO CLIENTE WHATSAPP
 // =====================================================================
 
-let whatsappState = { status: 'Inicializando...', qr: null, message: 'Servidor está inicializando.' };
+let whatsappState = { status: 'Inicializando...', qr: null, message: 'Servidor está inicializando e conectando ao banco de dados.' };
 let client;
-let isReconnecting = false; // Flag para evitar múltiplas tentativas de reconexão
+let isReconnecting = false;
 
-/**
- * **FUNÇÃO CENTRAL E DEFINITIVA**
- * Inicializa um novo cliente WhatsApp e anexa os listeners de eventos.
- */
 function initializeClient() {
-    if (client) return; // Se já existe um cliente, não faz nada.
+    // Garante que o cliente só seja inicializado se a conexão com o BD estiver pronta
+    if (client || !store) return;
     isReconnecting = false;
 
     console.log('[MANAGER] Inicializando o cliente WhatsApp...');
-    client = new Client({ 
-        authStrategy: new LocalAuth({ dataPath: SESSION_PATH }), 
-        puppeteer: { 
-            headless: true, 
-            args: ['--no-sandbox', '--disable-setuid-sandbox'] // Essencial para rodar em servidores Linux
-        } 
+    client = new Client({
+        // MUDANÇA: Usa a autenticação remota com o MongoStore
+        authStrategy: new RemoteAuth({
+            store: store,
+            backupSyncIntervalMs: 300000 // Salva a sessão no BD a cada 5 minutos
+        }),
+        puppeteer: {
+            headless: true,
+            // MUDANÇA CRÍTICA: Flags para otimizar o uso de memória na Render
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--single-process',
+                '--disable-gpu'
+            ],
+        },
     });
 
     client.on('qr', (qr) => { 
@@ -129,6 +162,10 @@ function initializeClient() {
         console.log('[EVENT] Cliente do WhatsApp conectado e pronto!'); 
         whatsappState = { status: 'Conectado', qr: null, message: 'Cliente conectado com sucesso.' }; 
     });
+    
+    client.on('remote_session_saved', () => {
+        console.log('[EVENT] Sessão salva remotamente no MongoDB.');
+    });
 
     client.on('disconnected', (reason) => { 
         console.error(`[EVENT] Cliente desconectado. Motivo: ${reason}. Iniciando processo de reconexão automática.`); 
@@ -137,7 +174,7 @@ function initializeClient() {
 
     client.on('auth_failure', (msg) => { 
         console.error(`[EVENT] Falha de autenticação: ${msg}. A sessão é inválida e será removida.`);
-        handleReconnection(true); // O 'true' força a remoção da sessão.
+        handleReconnection(true); 
     });
 
     client.initialize().catch(err => {
@@ -146,12 +183,6 @@ function initializeClient() {
     });
 }
 
-/**
- * **FUNÇÃO DEFINITIVA DE RECONEXÃO**
- * Destrói o cliente antigo de forma segura, limpa a sessão se necessário,
- * e reinicia o processo de criação de um novo cliente.
- * @param {boolean} removeSession - Se true, apaga a pasta da sessão para forçar um novo QR code.
- */
 async function handleReconnection(removeSession = false) {
     if (isReconnecting) return;
     isReconnecting = true;
@@ -169,17 +200,17 @@ async function handleReconnection(removeSession = false) {
     }
     client = null;
 
-    if (removeSession && fs.existsSync(SESSION_PATH)) {
-        console.log('[MANAGER] Removendo pasta de sessão antiga para forçar novo QR Code.');
-        fs.rmSync(SESSION_PATH, { recursive: true, force: true });
+    if (removeSession) {
+        // MUDANÇA: Limpa a sessão no MongoDB
+        console.log('[MANAGER] Removendo sessão remota do MongoDB para forçar novo QR Code.');
+        await store.delete({ session: "default" });
     }
     
-    // Aguarda um pouco antes de tentar de novo para evitar loops rápidos
     setTimeout(initializeClient, 5000);
 }
 
 // =====================================================================
-// ENDPOINTS DA API
+// ENDPOINTS DA API - Sem alterações na lógica
 // =====================================================================
 
 app.get('/status', (req, res) => {
@@ -187,18 +218,12 @@ app.get('/status', (req, res) => {
     res.status(200).json(whatsappState);
 });
 
-/**
- * **ENDPOINT DEFINITIVO DE RECONEXÃO**
- * Este é o endpoint que o botão da sua PWA chama. Ele agora é seguro e
- * não derruba o servidor.
- */
 app.post('/reconnect', async (req, res) => {
     if (isReconnecting) {
         return res.status(409).json({ message: 'Processo de reconexão já está em andamento.' });
     }
     console.log('[API] Recebida solicitação do usuário para forçar reconexão.');
     res.status(202).json({ message: 'Processo de reconexão iniciado. Aguarde um novo QR Code se necessário.' });
-    // Chama a função segura, forçando a remoção da sessão para gerar um novo QR Code.
     await handleReconnection(true);
 });
 
@@ -281,5 +306,5 @@ app.post('/batch-schedule-reminders', (req, res) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
     console.log(`Servidor de lembretes rodando na porta ${PORT}`);
-    initializeClient(); // Inicia o cliente pela primeira vez.
+    // A inicialização do cliente agora acontece após a conexão com o BD ser estabelecida.
 });

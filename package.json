@@ -3,8 +3,10 @@
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "firebase": "^11.9.1",
+    "mongoose": "^8.17.1",
     "pm2": "^6.0.8",
     "qrcode-terminal": "^0.12.0",
-    "whatsapp-web.js": "^1.31.0"
+    "whatsapp-web.js": "^1.31.0",
+    "wwebjs-mongo": "^1.1.0"
   }
 }
