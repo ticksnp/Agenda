@@ -101,13 +101,50 @@ function writeRemindersToDB(reminders) {
 let allReminders = readRemindersFromDB();
 
 // =====================================================================
-// AGENDADOR DE LEMBRETES (Scheduler) - Sem alterações
+// AGENDADOR DE LEMBRETES (Scheduler) - CORRIGIDO
 // =====================================================================
-const checkAndSendReminders = async () => { /* ... sua função continua igual ... */ };
+
+const checkAndSendReminders = async () => {
+    if (whatsappState.status !== 'Conectado' || !client) {
+        return;
+    }
+
+    const now = new Date();
+    let remindersModified = false;
+
+    // MUDANÇA APLICADA AQUI: Procura por 'agendado' (português)
+    const dueReminders = allReminders.filter(reminder => 
+        reminder && reminder.status === 'agendado' && new Date(reminder.sendAt) <= now
+    );
+
+    for (const reminder of dueReminders) {
+        try {
+            const chatId = `${reminder.number}@c.us`;
+            await client.sendMessage(chatId, reminder.message);
+            
+            const reminderIndex = allReminders.findIndex(r => r.id === reminder.id);
+            if (reminderIndex > -1) {
+                allReminders[reminderIndex].status = 'enviado'; // Correto
+                remindersModified = true;
+            }
+        } catch (error) {
+            console.error(`[SCHEDULER] Falha ao enviar para ${reminder.number}. Erro:`, error.message);
+            const reminderIndex = allReminders.findIndex(r => r.id === reminder.id);
+             if (reminderIndex > -1) {
+                allReminders[reminderIndex].status = 'falhou'; // Correto
+                remindersModified = true;
+            }
+        }
+    }
+
+    if (remindersModified) {
+        writeRemindersToDB(allReminders);
+    }
+};
 setInterval(checkAndSendReminders, 30000);
 
 // =====================================================================
-// GERENCIAMENTO DO CLIENTE WHATSAPP COM EMISSÃO DE STATUS
+// GERENCIAMENTO DO CLIENTE WHATSAPP - Sem alterações
 // =====================================================================
 let client;
 let isReconnecting = false;
@@ -262,7 +299,9 @@ app.post('/batch-schedule-reminders', (req, res) => {
                 sendAt = appointmentDateTime.toISOString();
             }
 
-            const newReminder = { id, number, message, sendAt, status: 'agended' };
+            // MUDANÇA APLICADA AQUI: Salva com o status 'agendado' (português)
+            const newReminder = { id, number, message, sendAt, status: 'agendado' };
+            
             const existingIndex = allReminders.findIndex(r => r && r.id === id);
 
             if (existingIndex > -1) {
