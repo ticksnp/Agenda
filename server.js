@@ -1,15 +1,15 @@
 // =====================================================================
-// MÓDULOS E CONFIGURAÇÃO INICIAL
+// MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
 const express = require('express');
 const http = require('http');
 const { Server } = require("socket.io");
-const { Client, LocalAuth } = require('whatsapp-web.js'); // Voltamos para LocalAuth
-const qrcode = require('qrcode-terminal');
+const { Client, LocalAuth } = require('whatsapp-web.js');
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
 
+// Manipulador para erros não capturados, evitando que o servidor caia
 process.on('uncaughtException', (err) => {
     console.error('[ERRO FATAL NÃO CAPTURADO]', err);
 });
@@ -17,7 +17,7 @@ process.on('uncaughtException', (err) => {
 const app = express();
 const httpServer = http.createServer(app);
 const io = new Server(httpServer, {
-  cors: { origin: "*", methods: ["GET", "POST"] } // Permite qualquer origem localmente
+  cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
 app.use(cors());
@@ -26,7 +26,42 @@ app.use(express.json());
 const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
 
 // =====================================================================
-// GERENCIADOR DE BOTS (A MUDANÇA CENTRAL)
+// FUNÇÕES AUXILIARES PARA PERSISTÊNCIA DE LEMBRETES
+// =====================================================================
+
+/**
+ * **[FUNÇÃO ADICIONADA]**
+ * Lê e parseia o arquivo JSON de lembretes de forma segura.
+ * @returns {Array} Um array de objetos de lembrete.
+ */
+function readRemindersFromDB() {
+    try {
+        if (fs.existsSync(REMINDERS_DB_PATH)) {
+            const data = fs.readFileSync(REMINDERS_DB_PATH, 'utf8');
+            return JSON.parse(data);
+        }
+        return [];
+    } catch (error) {
+        console.error('[DB] Erro ao ler o arquivo de lembretes:', error);
+        return []; // Retorna um array vazio em caso de erro
+    }
+}
+
+/**
+ * **[FUNÇÃO ADICIONADA]**
+ * Escreve o array de lembretes no arquivo JSON.
+ * @param {Array} reminders - O array de lembretes a ser salvo.
+ */
+function writeRemindersToDB(reminders) {
+    try {
+        fs.writeFileSync(REMINDERS_DB_PATH, JSON.stringify(reminders, null, 2), 'utf8');
+    } catch (error) {
+        console.error('[DB] Erro ao escrever no arquivo de lembretes:', error);
+    }
+}
+
+// =====================================================================
+// GERENCIADOR DE BOTS (MULTI-USUÁRIO)
 // =====================================================================
 
 const clients = new Map(); // Armazena as instâncias: { userId => { client, status, qr } }
@@ -40,10 +75,9 @@ function createWhatsappClient(userId) {
     console.log(`[MANAGER] Criando nova instância de cliente para o usuário: ${userId}`);
     
     const client = new Client({
-        // MUDANÇA: A sessão agora é salva em uma pasta única para cada usuário
         authStrategy: new LocalAuth({ 
             clientId: userId,
-            dataPath: path.join(__dirname, 'sessions') // Pasta principal para todas as sessões
+            dataPath: path.join(__dirname, 'sessions')
         }), 
         puppeteer: { 
             headless: true, 
@@ -103,11 +137,12 @@ async function destroyClient(userId) {
 io.on('connection', (socket) => {
     const userId = socket.handshake.query.userId;
     if (!userId) {
+        console.log('[SOCKET] Conexão sem userId. Desconectando.');
         return socket.disconnect();
     }
     
     console.log(`[SOCKET] Usuário ${userId} conectou-se com socket ID: ${socket.id}`);
-    socket.join(userId); // Coloca o usuário em uma "sala" privada
+    socket.join(userId);
 
     if (clients.has(userId)) {
         const { status, qr } = clients.get(userId);
@@ -122,17 +157,13 @@ io.on('connection', (socket) => {
 });
 
 // =====================================================================
-// ENDPOINTS DA API E LÓGICA DE LEMBRETES
+// VERIFICADOR E ENVIADOR DE LEMBRETES (SCHEDULER)
 // =====================================================================
 
-// Endpoint para o front-end solicitar a inicialização do seu bot
-app.post('/connect', (req, res) => {
-    const { userId } = req.body;
-    if (!userId) return res.status(400).json({ message: "userId é obrigatório." });
-
-    createWhatsappClient(userId);
-    res.status(200).json({ message: "Inicialização do cliente solicitada." });
-});
+/**
+ * **[FUNÇÃO CORRIGIDA]**
+ * Verifica periodicamente os lembretes e os envia usando o bot do usuário correto.
+ */
 const checkAndSendReminders = async () => {
     const allReminders = readRemindersFromDB();
     const now = new Date();
@@ -143,14 +174,14 @@ const checkAndSendReminders = async () => {
     for (const reminder of dueReminders) {
         const { userId, number, message, id } = reminder;
         
-        // Verifica se o bot do usuário correspondente está conectado
+        // **LÓGICA CENTRAL CORRIGIDA**: Verifica se o bot do usuário específico do lembrete está conectado.
         if (clients.has(userId) && clients.get(userId).status === 'Conectado') {
             try {
                 const client = clients.get(userId).client;
                 const chatId = `${number}@c.us`;
                 await client.sendMessage(chatId, message);
+                console.log(`[SCHEDULER] Lembrete ${id} enviado para ${number} pelo usuário ${userId}`);
                 
-                // Atualiza o status do lembrete
                 const reminderIndex = allReminders.findIndex(r => r.id === id);
                 if (reminderIndex > -1) {
                     allReminders[reminderIndex].status = 'enviado';
@@ -164,6 +195,8 @@ const checkAndSendReminders = async () => {
                     remindersModified = true;
                 }
             }
+        } else {
+            console.warn(`[SCHEDULER] Lembrete ${id} para o usuário ${userId} não pode ser enviado. Cliente não está conectado.`);
         }
     }
 
@@ -171,31 +204,42 @@ const checkAndSendReminders = async () => {
         writeRemindersToDB(allReminders);
     }
 };
+
+// Inicia o verificador de lembretes a cada 30 segundos
 setInterval(checkAndSendReminders, 30000);
 
-app.get('/status', (req, res) => {
-    res.setHeader('Cache-Control', 'no-cache');
-    res.status(200).json(whatsappState);
+
+// =====================================================================
+// ENDPOINTS DA API
+// =====================================================================
+
+app.post('/connect', (req, res) => {
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: "userId é obrigatório." });
+
+    createWhatsappClient(userId);
+    res.status(200).json({ message: "Inicialização do cliente solicitada." });
 });
 
-app.post('/reconnect', async (req, res) => {
-    if (isReconnecting) {
-        return res.status(409).json({ message: 'Processo de reconexão já está em andamento.' });
-    }
-    console.log('[API] Recebida solicitação do usuário para forçar reconexão.');
-    res.status(202).json({ message: 'Processo de reconexão iniciado. Aguarde um novo QR Code se necessário.' });
-    await handleReconnection(true);
+app.get('/reminders', (req, res) => {
+    const { userId } = req.query;
+    if (!userId) return res.status(400).json({ message: "userId é obrigatório." });
+    
+    const allReminders = readRemindersFromDB();
+    const userReminders = allReminders.filter(r => r.userId === userId);
+    res.status(200).json(userReminders);
 });
-
-app.get('/reminders', (req, res) => res.status(200).json(allReminders));
 
 app.post('/cancel-reminder', (req, res) => {
-    const { id } = req.body;
-    if (!id) return res.status(400).json({ message: 'ID é obrigatório.' });
+    const { id, userId } = req.body;
+    if (!id || !userId) return res.status(400).json({ message: 'ID do lembrete e userId são obrigatórios.' });
     
+    const allReminders = readRemindersFromDB();
     let reminderFound = false;
-    allReminders = allReminders.map(r => {
-        if (r && r.id === id && r.status === 'agendado') {
+    
+    const updatedReminders = allReminders.map(r => {
+        // Apenas cancela se o ID do lembrete E o ID do usuário baterem
+        if (r && r.id === id && r.userId === userId && r.status === 'agendado') {
             reminderFound = true;
             return { ...r, status: 'cancelado' };
         }
@@ -203,10 +247,10 @@ app.post('/cancel-reminder', (req, res) => {
     });
 
     if (reminderFound) {
-        writeRemindersToDB(allReminders);
+        writeRemindersToDB(updatedReminders);
         res.status(200).json({ message: 'Lembrete cancelado.' });
     } else {
-        res.status(404).json({ message: 'Lembrete não encontrado ou já processado.' });
+        res.status(404).json({ message: 'Lembrete não encontrado, já processado, ou não pertence a este usuário.' });
     }
 });
 
@@ -217,13 +261,16 @@ app.post('/batch-schedule-reminders', (req, res) => {
             return res.status(400).json({ message: 'Payload deve ser um array.' });
         }
         
+        const allReminders = readRemindersFromDB();
         let remindersWereModified = false;
+        
         for (const apt of appointments) {
-            if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message) {
+            // **VALIDAÇÃO REFORÇADA**: Garante que o userId está presente
+            if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message || !apt.userId) {
                 continue; 
             }
             
-            const { id, cellphone, whatsappReminder, date, startHour, message } = apt;
+            const { id, cellphone, whatsappReminder, date, startHour, message, userId } = apt;
             const number = `55${String(cellphone).replace(/\D/g, '')}`;
 
             let sendAt;
@@ -237,16 +284,20 @@ app.post('/batch-schedule-reminders', (req, res) => {
                 sendAt = appointmentDateTime.toISOString();
             }
 
-            const newReminder = { id, number, message, sendAt, status: 'agendado' };
+            // O novo lembrete agora inclui o userId
+            const newReminder = { id, userId, number, message, sendAt, status: 'agendado' };
             const existingIndex = allReminders.findIndex(r => r && r.id === id);
 
             if (existingIndex > -1) {
-                allReminders[existingIndex] = newReminder;
+                // Garante que não está sobrescrevendo um lembrete de outro usuário
+                if (allReminders[existingIndex].userId === userId) {
+                    allReminders[existingIndex] = newReminder;
+                    remindersWereModified = true;
+                }
             } else {
                 allReminders.push(newReminder);
+                remindersWereModified = true;
             }
-            
-            remindersWereModified = true;
         }
         
         if (remindersWereModified) {

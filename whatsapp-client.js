@@ -1,13 +1,10 @@
 import QRCode from 'https://esm.sh/qrcode';
 
-// Aponta para o seu servidor local que você inicia com PM2
 const WHATSAPP_SERVER_URL = 'http://localhost:3000';
-
-// Mantém a instância do socket ativa para evitar múltiplas conexões
 let socket;
 
 /**
- * Função interna que atualiza a interface do modal do WhatsApp (status, QR code, etc.).
+ * Atualiza a interface do modal do WhatsApp.
  * @param {object} data - O objeto de status recebido do servidor.
  */
 function updateWhatsappUI(data) {
@@ -22,6 +19,7 @@ function updateWhatsappUI(data) {
         case 'Conectado':
             statusEl.className = 'badge bg-success';
             qrCodeContainer.innerHTML = '<div class="text-center p-3"><i class="fas fa-check-circle fa-3x text-success"></i><p class="mt-2">Dispositivo conectado!</p></div>';
+            Swal.close(); // Fecha o popup de "Aguarde" se estiver aberto
             break;
         case 'Aguardando QR Code':
             statusEl.className = 'badge bg-warning text-dark';
@@ -36,6 +34,7 @@ function updateWhatsappUI(data) {
                     }
                 });
                 qrCodeContainer.dataset.qr = data.qr;
+                Swal.close(); // Fecha o popup para mostrar o QR code
             }
             break;
         default:
@@ -47,20 +46,18 @@ function updateWhatsappUI(data) {
 }
 
 // =====================================================================
-// FUNÇÕES EXPORTADAS (A "API" para o app.js)
+// FUNÇÕES EXPORTADAS
 // =====================================================================
 
 /**
- * Inicia a conexão do socket para o usuário logado, identificando-o pelo seu UID.
+ * Inicia a conexão do socket para o usuário logado.
  * @param {string} userId - O UID do usuário do Firebase.
  */
 export function initializeSocketConnection(userId) {
-    // Desconecta qualquer socket antigo para garantir uma única conexão por vez
     if (socket) {
         socket.disconnect();
     }
     
-    // Conecta-se ao servidor, enviando o ID do usuário para identificação
     socket = io(WHATSAPP_SERVER_URL, {
         query: { userId }
     });
@@ -69,7 +66,6 @@ export function initializeSocketConnection(userId) {
         console.log(`Conectado ao servidor de sockets para o usuário ${userId}!`);
     });
 
-    // Ouve pelo evento 'status_update' que o servidor envia em tempo real
     socket.on('status_update', (newState) => {
         console.log('Novo status recebido:', newState.status);
         updateWhatsappUI(newState);
@@ -87,7 +83,7 @@ export function initializeSocketConnection(userId) {
 }
 
 /**
- * Solicita ao servidor que inicie a instância do bot para o usuário especificado.
+ * Solicita ao servidor que inicie a instância do bot para o usuário.
  * @param {string} userId - O UID do usuário do Firebase.
  */
 export async function connectWhatsapp(userId) {
@@ -97,7 +93,6 @@ export async function connectWhatsapp(userId) {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ userId }),
         });
-        // A UI será atualizada automaticamente via socket quando o QR code ou status de "pronto" chegar.
     } catch (error) {
         console.error('Erro ao solicitar conexão:', error);
         Swal.fire('Erro', 'Não foi possível solicitar a conexão com o servidor local.', 'error');
@@ -105,22 +100,24 @@ export async function connectWhatsapp(userId) {
 }
 
 /**
- * Envia um lote de lembretes para serem agendados, incluindo o UID do usuário.
+ * Envia um lote de lembretes para serem agendados.
  * @param {Array} appointments - O array de objetos de agendamento.
  * @param {string} userId - O UID do usuário do Firebase que está agendando.
  */
 export async function scheduleBatchWhatsappReminders(appointments, userId) {
-    if (!appointments || appointments.length === 0) return;
+    if (!appointments || appointments.length === 0 || !userId) return;
 
-    // Adiciona o userId a cada lembrete para que o servidor saiba quem é o dono
     const appointmentsWithUserId = appointments.map(apt => ({ ...apt, userId }));
 
     try {
-        await fetch(`${WHATSAPP_SERVER_URL}/batch-schedule-reminders`, {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/batch-schedule-reminders`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(appointmentsWithUserId), // Envia o lote com os IDs
+            body: JSON.stringify(appointmentsWithUserId),
         });
+        if (!response.ok) {
+            throw new Error(`Servidor respondeu com status ${response.status}`);
+        }
         console.log("Lote de lembretes enviado ao servidor com sucesso.");
     } catch (error) {
         console.error('Erro CRÍTICO ao enviar lote de lembretes para o servidor:', error);
@@ -128,15 +125,40 @@ export async function scheduleBatchWhatsappReminders(appointments, userId) {
     }
 }
 
-// (As funções abaixo seriam adaptadas de forma similar, sempre passando o userId)
-
+/**
+ * **[FUNÇÃO CORRIGIDA E IMPLEMENTADA]**
+ * Solicita o cancelamento de um lembrete específico para um usuário.
+ * @param {string} reminderId - O ID do lembrete (geralmente o ID do agendamento).
+ * @param {string} userId - O UID do usuário do Firebase.
+ */
 export async function cancelWhatsappReminder(reminderId, userId) {
-    // A implementação no servidor precisaria ser ajustada para receber e usar o userId
-    console.log(`Solicitando cancelamento para o lembrete ${reminderId} do usuário ${userId}`);
+    try {
+        await fetch(`${WHATSAPP_SERVER_URL}/cancel-reminder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: reminderId, userId: userId }),
+        });
+    } catch (error) {
+        console.error('Erro ao cancelar lembrete:', error);
+    }
 }
 
+/**
+ * **[FUNÇÃO CORRIGIDA E IMPLEMENTADA]**
+ * Busca a lista de lembretes de um usuário específico do servidor.
+ * @param {string} userId - O UID do usuário do Firebase.
+ * @returns {Promise<Array>} Uma promessa que resolve para um array de lembretes.
+ */
 export async function getWhatsappReminders(userId) {
-    // A implementação no servidor precisaria ser ajustada para retornar lembretes apenas para este userId
-    console.log(`Buscando lembretes para o usuário ${userId}`);
-    return []; // Retorna vazio por enquanto
+    if (!userId) return [];
+    try {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/reminders?userId=${userId}`);
+        if (!response.ok) {
+            throw new Error('Falha ao buscar lembretes do servidor.');
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Erro ao buscar lembretes:', error);
+        return []; // Retorna vazio em caso de erro
+    }
 }
