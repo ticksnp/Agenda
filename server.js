@@ -155,7 +155,6 @@ function initializeClient() {
 
     console.log('[MANAGER] Inicializando o cliente WhatsApp...');
 
-    // Pega a chave da API das variáveis de ambiente
     const BROWSERLESS_API_KEY = process.env.BROWSERLESS_API_KEY;
     if (!BROWSERLESS_API_KEY) {
         console.error("[ERRO CRÍTICO] A variável de ambiente BROWSERLESS_API_KEY não está definida.");
@@ -163,18 +162,19 @@ function initializeClient() {
     }
 
     client = new Client({
+        // MUDANÇA CRUCIAL AQUI: Simplificamos a configuração da RemoteAuth
         authStrategy: new RemoteAuth({
             store: store,
-            backupSyncIntervalMs: 300000
+            backupSyncIntervalMs: 300000 
+            // A propriedade 'dataPath' foi REMOVIDA.
+            // Isso impede a biblioteca de tentar criar o backup local em arquivo.
         }),
-        // MUDANÇA CRUCIAL: Aponta para o navegador remoto
         puppeteer: {
             headless: true,
-            // A mágica acontece aqui:
             browserWSEndpoint: `wss://chrome.browserless.io?token=${BROWSERLESS_API_KEY}`,
         }
     });
-
+    
     client.on('qr', (qr) => { 
         qrcode.generate(qr, { small: true }); 
         whatsappState = { status: 'Aguardando QR Code', qr: qr, message: 'Escaneie o QR Code para conectar.' };
