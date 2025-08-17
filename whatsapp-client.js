@@ -1,15 +1,12 @@
+// MUDANÇA CRÍTICA: A URL AGORA DEVE USAR "https://"
 // =================================================================================
-// ATENÇÃO: CONFIGURAÇÃO CRÍTICA PARA CONEXÃO EM REDE
+// ATENÇÃO: Verifique se o IP local do seu servidor ainda é o mesmo.
+// A mudança principal aqui é usar "https" em vez de "http".
 // =================================================================================
-// Substitua 'localhost' pelo endereço de IP local do computador ONDE O 'server.js' ESTÁ RODANDO.
-// Para descobrir o IP local no Windows, abra o CMD e digite 'ipconfig'. Procure por "Endereço IPv4".
-// No Mac ou Linux, abra o terminal e digite 'ifconfig' ou 'ip addr'.
-// Exemplo: 'http://192.168.1.15:3000'
-// =================================================================================
-const WHATSAPP_SERVER_URL = 'http://192.168.56.1:3000';
+const WHATSAPP_SERVER_URL = 'https://192.168.56.1:3000';
 
 
-// O restante do código permanece o mesmo, mas está incluído para que você possa substituir o arquivo inteiro.
+// O restante do código permanece o mesmo.
 import QRCode from 'https://esm.sh/qrcode';
 
 let socket;
@@ -30,7 +27,7 @@ function updateWhatsappUI(data) {
         case 'Conectado':
             statusEl.className = 'badge bg-success';
             qrCodeContainer.innerHTML = '<div class="text-center p-3"><i class="fas fa-check-circle fa-3x text-success"></i><p class="mt-2">Dispositivo conectado!</p></div>';
-            Swal.close(); // Fecha o popup de "Aguarde" se estiver aberto
+            Swal.close();
             break;
         case 'Aguardando QR Code':
             statusEl.className = 'badge bg-warning text-dark';
@@ -45,7 +42,7 @@ function updateWhatsappUI(data) {
                     }
                 });
                 qrCodeContainer.dataset.qr = data.qr;
-                Swal.close(); // Fecha o popup para mostrar o QR code
+                Swal.close();
             }
             break;
         default:
@@ -60,10 +57,6 @@ function updateWhatsappUI(data) {
 // FUNÇÕES EXPORTADAS
 // =====================================================================
 
-/**
- * Inicia a conexão do socket para o usuário logado.
- * @param {string} userId - O UID do usuário do Firebase.
- */
 export function initializeSocketConnection(userId) {
     if (socket) {
         socket.disconnect();
@@ -93,10 +86,6 @@ export function initializeSocketConnection(userId) {
     });
 }
 
-/**
- * Solicita ao servidor que inicie a instância do bot para o usuário.
- * @param {string} userId - O UID do usuário do Firebase.
- */
 export async function connectWhatsapp(userId) {
     try {
         await fetch(`${WHATSAPP_SERVER_URL}/connect`, {
@@ -110,11 +99,6 @@ export async function connectWhatsapp(userId) {
     }
 }
 
-/**
- * Envia um lote de lembretes para serem agendados.
- * @param {Array} appointments - O array de objetos de agendamento.
- * @param {string} userId - O UID do usuário do Firebase que está agendando.
- */
 export async function scheduleBatchWhatsappReminders(appointments, userId) {
     if (!appointments || appointments.length === 0 || !userId) return;
 
@@ -136,11 +120,6 @@ export async function scheduleBatchWhatsappReminders(appointments, userId) {
     }
 }
 
-/**
- * Solicita o cancelamento de um lembrete específico para um usuário.
- * @param {string} reminderId - O ID do lembrete (geralmente o ID do agendamento).
- * @param {string} userId - O UID do usuário do Firebase.
- */
 export async function cancelWhatsappReminder(reminderId, userId) {
     try {
         await fetch(`${WHATSAPP_SERVER_URL}/cancel-reminder`, {
@@ -153,11 +132,6 @@ export async function cancelWhatsappReminder(reminderId, userId) {
     }
 }
 
-/**
- * Busca a lista de lembretes de um usuário específico do servidor.
- * @param {string} userId - O UID do usuário do Firebase.
- * @returns {Promise<Array>} Uma promessa que resolve para um array de lembretes.
- */
 export async function getWhatsappReminders(userId) {
     if (!userId) return [];
     try {
@@ -168,6 +142,6 @@ export async function getWhatsappReminders(userId) {
         return await response.json();
     } catch (error) {
         console.error('Erro ao buscar lembretes:', error);
-        return []; // Retorna vazio em caso de erro
+        return [];
     }
 }

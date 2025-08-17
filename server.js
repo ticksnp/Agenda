@@ -1,11 +1,11 @@
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
 const express = require('express');
-const http = require('http');
+const https = require('https'); // MUDANÇA: Usar o módulo HTTPS
+const fs = require('fs'); // MUDANÇA: Módulo File System para ler os certificados
 const { Server } = require("socket.io");
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const cors = require('cors');
-const fs = require('fs');
 const path = require('path');
 
 // Manipulador para erros não capturados, evitando que o servidor caia
@@ -14,8 +14,16 @@ process.on('uncaughtException', (err) => {
 });
 
 const app = express();
-const httpServer = http.createServer(app);
-const io = new Server(httpServer, {
+
+// MUDANÇA: Configuração do SSL
+const sslOptions = {
+    key: fs.readFileSync(path.join(__dirname, 'key.pem')), // Caminho para sua chave
+    cert: fs.readFileSync(path.join(__dirname, 'cert.pem')) // Caminho para seu certificado
+};
+
+const httpsServer = https.createServer(sslOptions, app); // MUDANÇA: Criar um servidor HTTPS
+
+const io = new Server(httpsServer, { // MUDANÇA: Anexar o Socket.IO ao servidor HTTPS
   cors: { origin: "*", methods: ["GET", "POST"] }
 });
 
@@ -25,13 +33,15 @@ app.use(express.json());
 const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
 
 // =====================================================================
+// O RESTANTE DO SEU CÓDIGO (FUNÇÕES, GERENCIADOR DE BOTS, ENDPOINTS)
+// PERMANECE EXATAMENTE O MESMO. COLE-O AQUI.
+// ... (todo o resto do seu server.js a partir da linha "FUNÇÕES AUXILIARES") ...
+// =====================================================================
+
+// =====================================================================
 // FUNÇÕES AUXILIARES PARA PERSISTÊNCIA DE LEMBRETES
 // =====================================================================
 
-/**
- * Lê e parseia o arquivo JSON de lembretes de forma segura.
- * @returns {Array} Um array de objetos de lembrete.
- */
 function readRemindersFromDB() {
     try {
         if (fs.existsSync(REMINDERS_DB_PATH)) {
@@ -41,14 +51,10 @@ function readRemindersFromDB() {
         return [];
     } catch (error) {
         console.error('[DB] Erro ao ler o arquivo de lembretes:', error);
-        return []; // Retorna um array vazio em caso de erro
+        return [];
     }
 }
 
-/**
- * Escreve o array de lembretes no arquivo JSON.
- * @param {Array} reminders - O array de lembretes a ser salvo.
- */
 function writeRemindersToDB(reminders) {
     try {
         fs.writeFileSync(REMINDERS_DB_PATH, JSON.stringify(reminders, null, 2), 'utf8');
@@ -61,7 +67,7 @@ function writeRemindersToDB(reminders) {
 // GERENCIADOR DE BOTS (MULTI-USUÁRIO)
 // =====================================================================
 
-const clients = new Map(); // Armazena as instâncias: { userId => { client, status, qr } }
+const clients = new Map();
 
 function createWhatsappClient(userId) {
     if (clients.has(userId)) {
@@ -157,21 +163,16 @@ io.on('connection', (socket) => {
 // VERIFICADOR E ENVIADOR DE LEMBRETES (SCHEDULER)
 // =====================================================================
 
-/**
- * **[FUNÇÃO CORRIGIDA]**
- * Verifica periodicamente os lembretes e os envia usando o bot do usuário correto.
- */
 const checkAndSendReminders = async () => {
     const allReminders = readRemindersFromDB();
     const now = new Date();
     let remindersModified = false;
 
-    const dueReminders = allReminders.filter(r => r && r.status === 'agendado' && new Date(r.sendAt) <= now);
+    const dueReminders = allReminders.filter(r => r && r.status === 'agended' && new Date(r.sendAt) <= now);
 
     for (const reminder of dueReminders) {
         const { userId, number, message, id } = reminder;
         
-        // **[LÓGICA CRÍTICA CORRIGIDA]** Verifica se o bot do usuário específico do lembrete está conectado.
         if (clients.has(userId) && clients.get(userId).status === 'Conectado') {
             try {
                 const client = clients.get(userId).client;
@@ -202,7 +203,6 @@ const checkAndSendReminders = async () => {
     }
 };
 
-// Inicia o verificador de lembretes a cada 30 segundos
 setInterval(checkAndSendReminders, 30000);
 
 
@@ -235,7 +235,6 @@ app.post('/cancel-reminder', (req, res) => {
     let reminderFound = false;
     
     const updatedReminders = allReminders.map(r => {
-        // Apenas cancela se o ID do lembrete E o ID do usuário baterem
         if (r && r.id === id && r.userId === userId && r.status === 'agendado') {
             reminderFound = true;
             return { ...r, status: 'cancelado' };
@@ -262,7 +261,6 @@ app.post('/batch-schedule-reminders', (req, res) => {
         let remindersWereModified = false;
         
         for (const apt of appointments) {
-            // Validação reforçada para garantir que todos os campos necessários existam
             if (!apt?.id || !apt.cellphone || !apt.whatsappReminder || apt.whatsappReminder === 'Sem lembrete' || !apt.date || !apt.startHour || !apt.message || !apt.userId) {
                 continue; 
             }
@@ -285,7 +283,6 @@ app.post('/batch-schedule-reminders', (req, res) => {
             const existingIndex = allReminders.findIndex(r => r && r.id === id);
 
             if (existingIndex > -1) {
-                // Garante que não está sobrescrevendo um lembrete de outro usuário
                 if (allReminders[existingIndex].userId === userId) {
                     allReminders[existingIndex] = newReminder;
                     remindersWereModified = true;
@@ -311,6 +308,6 @@ app.post('/batch-schedule-reminders', (req, res) => {
 // INICIALIZAÇÃO DO SERVIDOR
 // =====================================================================
 const PORT = process.env.PORT || 3000;
-httpServer.listen(PORT, () => {
-    console.log(`Servidor gerenciador de bots rodando na porta ${PORT}`);
+httpsServer.listen(PORT, () => { // MUDANÇA: Iniciar o servidor HTTPS
+    console.log(`Servidor gerenciador de bots rodando em HTTPS na porta ${PORT}`);
 });
