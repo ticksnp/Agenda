@@ -3,7 +3,7 @@
 // ATENÇÃO: Verifique se o IP local do seu servidor ainda é o mesmo.
 // A mudança principal aqui é usar "https" em vez de "http".
 // =================================================================================
-const WHATSAPP_SERVER_URL = 'https://192.168.56.1:3000';
+const WHATSAPP_SERVER_URL = 'https://192.168.88.249:3000';
 
 
 // O restante do código permanece o mesmo.
