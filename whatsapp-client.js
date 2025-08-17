@@ -1,6 +1,17 @@
+// =================================================================================
+// ATENÇÃO: CONFIGURAÇÃO CRÍTICA PARA CONEXÃO EM REDE
+// =================================================================================
+// Substitua 'localhost' pelo endereço de IP local do computador ONDE O 'server.js' ESTÁ RODANDO.
+// Para descobrir o IP local no Windows, abra o CMD e digite 'ipconfig'. Procure por "Endereço IPv4".
+// No Mac ou Linux, abra o terminal e digite 'ifconfig' ou 'ip addr'.
+// Exemplo: 'http://192.168.1.15:3000'
+// =================================================================================
+const WHATSAPP_SERVER_URL = 'http://192.168.56.1:3000';
+
+
+// O restante do código permanece o mesmo, mas está incluído para que você possa substituir o arquivo inteiro.
 import QRCode from 'https://esm.sh/qrcode';
 
-const WHATSAPP_SERVER_URL = 'http://localhost:3000';
 let socket;
 
 /**
@@ -73,7 +84,7 @@ export function initializeSocketConnection(userId) {
 
     socket.on('connect_error', (error) => {
         console.error('Erro de conexão com o socket:', error);
-        updateWhatsappUI({ status: 'Offline', message: 'Não foi possível conectar ao servidor.' });
+        updateWhatsappUI({ status: 'Offline', message: 'Não foi possível conectar ao servidor. Verifique se o IP está correto e se o servidor está rodando.' });
     });
 
     socket.on('disconnect', () => {
@@ -95,7 +106,7 @@ export async function connectWhatsapp(userId) {
         });
     } catch (error) {
         console.error('Erro ao solicitar conexão:', error);
-        Swal.fire('Erro', 'Não foi possível solicitar a conexão com o servidor local.', 'error');
+        Swal.fire('Erro', 'Não foi possível solicitar a conexão com o servidor local. Verifique o IP e se o firewall não está bloqueando a porta 3000.', 'error');
     }
 }
 
@@ -126,7 +137,6 @@ export async function scheduleBatchWhatsappReminders(appointments, userId) {
 }
 
 /**
- * **[FUNÇÃO CORRIGIDA E IMPLEMENTADA]**
  * Solicita o cancelamento de um lembrete específico para um usuário.
  * @param {string} reminderId - O ID do lembrete (geralmente o ID do agendamento).
  * @param {string} userId - O UID do usuário do Firebase.
@@ -144,7 +154,6 @@ export async function cancelWhatsappReminder(reminderId, userId) {
 }
 
 /**
- * **[FUNÇÃO CORRIGIDA E IMPLEMENTADA]**
  * Busca a lista de lembretes de um usuário específico do servidor.
  * @param {string} userId - O UID do usuário do Firebase.
  * @returns {Promise<Array>} Uma promessa que resolve para um array de lembretes.

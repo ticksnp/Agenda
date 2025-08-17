@@ -111,5 +111,21 @@
     "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com *Franciele Sauer* no dia *15/08/2025* às *08:30*.\n\nSe precisar alterar ou cancelar, por favor, nos avise com antecedência.",
     "sendAt": "2025-08-15T07:01:32.668Z",
     "status": "enviado"
+  },
+  {
+    "id": "ZLf6TyAJ7Pwg0JMBWCl1",
+    "userId": "IIovBuPDiNSiSyhTz6GF6oAzLHb2",
+    "number": "555499884608",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com a *Franciele* *Neuropsicóloga* no dia *15/08/2025* às *09:30*.\n\nSe precisar alterar ou cancelar, peço a gentileza de informar com no mínimo *4 horas de antecedência para evitar cobrança*.\n\nChave PIX Celular (caso necessário):\n54991798433\n",
+    "sendAt": "2025-08-15T08:49:37.682Z",
+    "status": "enviado"
+  },
+  {
+    "id": "LzmItkemIUJcE3LLHjhc",
+    "userId": "xq2qw6tFB1gtOmSdwESP0fP1WC92",
+    "number": "555492048206",
+    "message": "📌 Olá *teste*, este é um lembrete do seu agendamento com *Franciele Sauer* no dia *15/08/2025* às *09:30*.\n\nSe precisar alterar ou cancelar, por favor, nos avise com antecedência.",
+    "sendAt": "2025-08-15T08:50:54.478Z",
+    "status": "enviado"
   }
 ]
