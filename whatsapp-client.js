@@ -3,7 +3,7 @@
 // ATENÇÃO: Verifique se o IP local do seu servidor ainda é o mesmo.
 // A mudança principal aqui é usar "https" em vez de "http".
 // =================================================================================
-const WHATSAPP_SERVER_URL = 'https://6d4373dc4b47.ngrok-free.app';
+const WHATSAPP_SERVER_URL = 'https://227e0ab0a087.ngrok-free.app';
 
 
 // O restante do código permanece o mesmo.

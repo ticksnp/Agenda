@@ -22,7 +22,7 @@ const app = express();
 //    TODA VEZ QUE VOCÊ REINICIAR O NGROK!
 const allowedOrigins = [
   "https://fsagenda.netlify.app",               // Seu site principal
-  "https://6d4373dc4b47.ngrok-free.app"     // <<<--- COLOQUE A SUA URL ATUAL DO NGROK AQUI
+  "https://227e0ab0a087.ngrok-free.app"     // <<<--- COLOQUE A SUA URL ATUAL DO NGROK AQUI
 ];
 
 // 2. Crie as opções de CORS com logging para depuração.
@@ -57,8 +57,12 @@ const httpsServer = https.createServer(sslOptions, app);
 
 // 5. Crie o servidor Socket.IO com as mesmas opções de CORS e compatibilidade.
 const io = new Server(httpsServer, {
-  allowEIO3: true,
-  cors: corsOptions
+  allowEIO3: true, // Mantém a compatibilidade
+  cors: {
+    origin: "*", // A configuração mais permissiva possível para o teste
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
 // --- FIM DA NOVA CONFIGURAÇÃO ROBUSTA ---
