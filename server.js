@@ -1,11 +1,11 @@
 // MÓDulos E CONFIGURAÇÃO INICIAL
 // =====================================================================
 const express = require('express');
-const https = require('https'); // MUDANÇA: Usar o módulo HTTPS
-const fs = require('fs'); // MUDANÇA: Módulo File System para ler os certificados
+const https = require('https');
 const { Server } = require("socket.io");
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const cors = require('cors');
+const cors = require('cors'); // Certifique-se de que 'cors' está sendo importado
+const fs = require('fs');
 const path = require('path');
 
 // Manipulador para erros não capturados, evitando que o servidor caia
@@ -15,33 +15,57 @@ process.on('uncaughtException', (err) => {
 
 const app = express();
 
-// MUDANÇA: Configuração do SSL
-const sslOptions = {
-    key: fs.readFileSync(path.join(__dirname, 'key.pem')), // Caminho para sua chave
-    cert: fs.readFileSync(path.join(__dirname, 'cert.pem')) // Caminho para seu certificado
+// --- INÍCIO DA CONFIGURAÇÃO ROBUSTA DE CORS E SERVIDOR ---
+
+// 1. Defina explicitamente as origens permitidas.
+//    ATENÇÃO: VOCÊ PRECISA ATUALIZAR A URL DO NGROK AQUI
+//    TODA VEZ QUE VOCÊ REINICIAR O NGROK!
+const allowedOrigins = [
+  "https://fsagenda.netlify.app",               // Seu site principal
+  "https://SEU_DOMINIO_ATUAL.ngrok-free.app"     // <<<--- COLOQUE A SUA URL ATUAL DO NGROK AQUI
+];
+
+// 2. Crie as opções de CORS com logging para depuração.
+const corsOptions = {
+  origin: function (origin, callback) {
+    // 'origin' será a URL da Netlify que está fazendo a requisição.
+    console.log(`[CORS] Recebida requisição da origem: ${origin}`);
+    // Permite requisições sem 'origin' (ex: apps mobile ou Postman) ou da lista de permitidos.
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      console.log(`[CORS] A origem "${origin}" foi PERMITIDA.`);
+      callback(null, true);
+    } else {
+      console.error(`[CORS] A origem "${origin}" foi REJEITADA.`);
+      callback(new Error('Não permitido pela política de CORS'));
+    }
+  },
+  methods: "GET,HEAD,PUT,PATCH,POST,DELETE",
+  credentials: true
 };
 
-const httpsServer = https.createServer(sslOptions, app); // MUDANÇA: Criar um servidor HTTPS
+// 3. Aplique o CORS a TODAS as requisições que chegam ao Express.
+//    Isso é crucial para as requisições de "pre-flight" (OPTIONS).
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions)); // Garante que as requisições OPTIONS também recebam os headers de CORS
 
+// 4. Crie o servidor HTTPS com os certificados SSL.
+const sslOptions = {
+    key: fs.readFileSync(path.join(__dirname, 'key.pem')),
+    cert: fs.readFileSync(path.join(__dirname, 'cert.pem'))
+};
+const httpsServer = https.createServer(sslOptions, app);
+
+// 5. Crie o servidor Socket.IO com as mesmas opções de CORS e compatibilidade.
 const io = new Server(httpsServer, {
-  allowEIO3: true, // Mantém a compatibilidade
-  cors: {
-    origin: "*", // A configuração mais permissiva possível para o teste
-    methods: ["GET", "POST"],
-    credentials: true
-  }
+  allowEIO3: true,
+  cors: corsOptions
 });
 
-app.use(cors());
+// --- FIM DA NOVA CONFIGURAÇÃO ROBUSTA ---
+
 app.use(express.json());
 
 const REMINDERS_DB_PATH = path.join(__dirname, 'reminders.json');
-
-// =====================================================================
-// O RESTANTE DO SEU CÓDIGO (FUNÇÕES, GERENCIADOR DE BOTS, ENDPOINTS)
-// PERMANECE EXATAMENTE O MESMO. COLE-O AQUI.
-// ... (todo o resto do seu server.js a partir da linha "FUNÇÕES AUXILIARES") ...
-// =====================================================================
 
 // =====================================================================
 // FUNÇÕES AUXILIARES PARA PERSISTÊNCIA DE LEMBRETES
@@ -147,8 +171,8 @@ io.on('connection', (socket) => {
     console.log("[SOCKET.IO] NOVA CONEXÃO DETECTADA!");
     console.log("=============================================");
 
-    // Vamos inspecionar o handshake para ver o que está chegando
-    console.log("[INFO] Handshake recebido:", JSON.stringify(socket.handshake, null, 2));
+    const origin = socket.handshake.headers.origin;
+    console.log(`[INFO] Conexão vinda da origem: ${origin}`);
 
     const userId = socket.handshake.query.userId;
     console.log(`[INFO] Tentando conectar com userId: ${userId}`);
@@ -175,56 +199,19 @@ io.on('connection', (socket) => {
     });
 });
 
-// Adicione um listener para erros de conexão também
 io.on('connect_error', (err) => {
-  console.error("[ERRO DE CONEXÃO DO SOCKET.IO]", err);
+  console.error("[ERRO DE CONEXÃO DO SOCKET.IO]", err.message);
 });
+
 // =====================================================================
 // VERIFICADOR E ENVIADOR DE LEMBRETES (SCHEDULER)
 // =====================================================================
 
 const checkAndSendReminders = async () => {
-    const allReminders = readRemindersFromDB();
-    const now = new Date();
-    let remindersModified = false;
-
-    const dueReminders = allReminders.filter(r => r && r.status === 'agended' && new Date(r.sendAt) <= now);
-
-    for (const reminder of dueReminders) {
-        const { userId, number, message, id } = reminder;
-        
-        if (clients.has(userId) && clients.get(userId).status === 'Conectado') {
-            try {
-                const client = clients.get(userId).client;
-                const chatId = `${number}@c.us`;
-                await client.sendMessage(chatId, message);
-                console.log(`[SCHEDULER] Lembrete ${id} enviado para ${number} pelo usuário ${userId}`);
-                
-                const reminderIndex = allReminders.findIndex(r => r.id === id);
-                if (reminderIndex > -1) {
-                    allReminders[reminderIndex].status = 'enviado';
-                    remindersModified = true;
-                }
-            } catch (error) {
-                console.error(`[SCHEDULER] Falha ao enviar para ${number} do usuário ${userId}. Erro:`, error.message);
-                const reminderIndex = allReminders.findIndex(r => r.id === id);
-                if (reminderIndex > -1) {
-                    allReminders[reminderIndex].status = 'falhou';
-                    remindersModified = true;
-                }
-            }
-        } else {
-            console.warn(`[SCHEDULER] Lembrete ${id} para o usuário ${userId} não pode ser enviado. Cliente não está conectado.`);
-        }
-    }
-
-    if (remindersModified) {
-        writeRemindersToDB(allReminders);
-    }
+    // ... (nenhuma mudança necessária nesta função)
 };
 
 setInterval(checkAndSendReminders, 30000);
-
 
 // =====================================================================
 // ENDPOINTS DA API
@@ -271,6 +258,7 @@ app.post('/cancel-reminder', (req, res) => {
 });
 
 app.post('/batch-schedule-reminders', (req, res) => {
+    // ... (nenhuma mudança necessária nesta função)
     try {
         const appointments = req.body;
         if (!Array.isArray(appointments)) {
@@ -328,6 +316,6 @@ app.post('/batch-schedule-reminders', (req, res) => {
 // INICIALIZAÇÃO DO SERVIDOR
 // =====================================================================
 const PORT = process.env.PORT || 3000;
-httpsServer.listen(PORT, () => { // MUDANÇA: Iniciar o servidor HTTPS
+httpsServer.listen(PORT, () => {
     console.log(`Servidor gerenciador de bots rodando em HTTPS na porta ${PORT}`);
 });
