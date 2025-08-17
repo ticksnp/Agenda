@@ -23,8 +23,14 @@ const sslOptions = {
 
 const httpsServer = https.createServer(sslOptions, app); // MUDANÇA: Criar um servidor HTTPS
 
-const io = new Server(httpsServer, { // MUDANÇA: Anexar o Socket.IO ao servidor HTTPS
-  cors: { origin: "*", methods: ["GET", "POST"] }
+const io = new Server(httpsServer, {
+  cors: {
+    origin: [
+      "https://fsagenda.netlify.app", // Seu site principal
+      "https://9c8f1f2153b9.ngrok-free.app" // <<-- COLOQUE A URL DO NGROK AQUI!
+    ],
+    methods: ["GET", "POST"]
+  }
 });
 
 app.use(cors());
@@ -138,27 +144,42 @@ async function destroyClient(userId) {
 // =====================================================================
 
 io.on('connection', (socket) => {
+    console.log("\n=============================================");
+    console.log("[SOCKET.IO] NOVA CONEXÃO DETECTADA!");
+    console.log("=============================================");
+
+    // Vamos inspecionar o handshake para ver o que está chegando
+    console.log("[INFO] Handshake recebido:", JSON.stringify(socket.handshake, null, 2));
+
     const userId = socket.handshake.query.userId;
+    console.log(`[INFO] Tentando conectar com userId: ${userId}`);
+
     if (!userId) {
-        console.log('[SOCKET] Conexão sem userId. Desconectando.');
+        console.error('[ERRO] Conexão recebida sem userId! Desconectando o socket.');
         return socket.disconnect();
     }
     
-    console.log(`[SOCKET] Usuário ${userId} conectou-se com socket ID: ${socket.id}`);
+    console.log(`[SUCESSO] Usuário ${userId} conectou-se com socket ID: ${socket.id}`);
     socket.join(userId);
 
     if (clients.has(userId)) {
         const { status, qr } = clients.get(userId);
+        console.log(`[STATUS] Enviando status existente para ${userId}: ${status}`);
         socket.emit('status_update', { status, qr });
     } else {
+        console.log(`[STATUS] Nenhuma sessão ativa. Enviando status 'Desconectado' para ${userId}.`);
         socket.emit('status_update', { status: 'Desconectado', message: 'Clique em Conectar para iniciar.' });
     }
 
     socket.on('disconnect', () => {
-        console.log(`[SOCKET] Usuário ${userId} desconectou-se.`);
+        console.log(`[SOCKET.IO] Usuário ${userId} desconectou-se.`);
     });
 });
 
+// Adicione um listener para erros de conexão também
+io.on('connect_error', (err) => {
+  console.error("[ERRO DE CONEXÃO DO SOCKET.IO]", err);
+});
 // =====================================================================
 // VERIFICADOR E ENVIADOR DE LEMBRETES (SCHEDULER)
 // =====================================================================
