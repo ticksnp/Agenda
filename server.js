@@ -30,7 +30,8 @@ const io = new Server(httpsServer, {
       "https://9c8f1f2153b9.ngrok-free.app" // <<-- COLOQUE A URL DO NGROK AQUI!
     ],
     methods: ["GET", "POST"]
-  }
+  },
+  allowEIO3: true // <-- ADICIONE ESTA LINHA
 });
 
 app.use(cors());
