@@ -63,7 +63,8 @@ export function initializeSocketConnection(userId) {
     }
     
     socket = io(WHATSAPP_SERVER_URL, {
-        query: { userId }
+        query: { userId },
+        transports: ['polling'] // <-- ADICIONE ESTA LINHA
     });
 
     socket.on('connect', () => {
