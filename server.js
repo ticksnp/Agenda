@@ -22,7 +22,7 @@ const app = express();
 //    TODA VEZ QUE VOCÊ REINICIAR O NGROK!
 const allowedOrigins = [
   "https://fsagenda.netlify.app",               // Seu site principal
-  "https://SEU_DOMINIO_ATUAL.ngrok-free.app"     // <<<--- COLOQUE A SUA URL ATUAL DO NGROK AQUI
+  "https://6d4373dc4b47.ngrok-free.app"     // <<<--- COLOQUE A SUA URL ATUAL DO NGROK AQUI
 ];
 
 // 2. Crie as opções de CORS com logging para depuração.
