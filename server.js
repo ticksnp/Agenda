@@ -24,14 +24,12 @@ const sslOptions = {
 const httpsServer = https.createServer(sslOptions, app); // MUDANÇA: Criar um servidor HTTPS
 
 const io = new Server(httpsServer, {
+  allowEIO3: true, // Mantém a compatibilidade
   cors: {
-    origin: [
-      "https://fsagenda.netlify.app", // Seu site principal
-      "https://9c8f1f2153b9.ngrok-free.app" // <<-- COLOQUE A URL DO NGROK AQUI!
-    ],
-    methods: ["GET", "POST"]
-  },
-  allowEIO3: true // <-- ADICIONE ESTA LINHA
+    origin: "*", // A configuração mais permissiva possível para o teste
+    methods: ["GET", "POST"],
+    credentials: true
+  }
 });
 
 app.use(cors());
